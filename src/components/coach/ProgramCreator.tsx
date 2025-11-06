@@ -12,6 +12,15 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { ArrowLeft, Plus, Trash2, Save } from "lucide-react";
 import Link from "next/link";
 import { calculateWeight } from "@/lib/utils";
@@ -305,39 +314,43 @@ export default function ProgramCreator({
                 <div className="space-y-4">
                   {/* Sets Table */}
                   <div className="overflow-x-auto">
-                    <table className="w-full border-collapse">
-                      <thead>
-                        <tr className="border-b">
-                          <th className="text-left p-2">Exercice</th>
-                          <th className="text-center p-2">Séries</th>
-                          <th className="text-center p-2">Rép</th>
-                          <th className="text-center p-2">RPE</th>
-                          <th className="text-center p-2">Charge (kg)</th>
-                          <th className="text-left p-2">Instructions</th>
-                          <th className="w-10"></th>
-                        </tr>
-                      </thead>
-                      <tbody>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Exercice</TableHead>
+                          <TableHead className="text-center">Séries</TableHead>
+                          <TableHead className="text-center">Rép</TableHead>
+                          <TableHead className="text-center">RPE</TableHead>
+                          <TableHead className="text-center">Charge (kg)</TableHead>
+                          <TableHead>Instructions</TableHead>
+                          <TableHead className="w-10"></TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
                         {session.sets.map((set) => (
-                          <tr key={set.id} className="border-b">
-                            <td className="p-2">
-                              <select
+                          <TableRow key={set.id}>
+                            <TableCell>
+                              <Select
                                 value={set.exerciseId}
-                                onChange={(e) =>
+                                onValueChange={(value) =>
                                   updateSet(session.id, set.id, {
-                                    exerciseId: e.target.value,
+                                    exerciseId: value,
                                   })
                                 }
-                                className="w-full p-2 border rounded"
                               >
-                                {exercises.map((ex) => (
-                                  <option key={ex.id} value={ex.id}>
-                                    {ex.name}
-                                  </option>
-                                ))}
-                              </select>
-                            </td>
-                            <td className="p-2">
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Sélectionner un exercice" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {exercises.map((ex) => (
+                                    <SelectItem key={ex.id} value={ex.id}>
+                                      {ex.name}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell>
                               <Input
                                 type="number"
                                 min="1"
@@ -349,8 +362,8 @@ export default function ProgramCreator({
                                 }
                                 className="text-center"
                               />
-                            </td>
-                            <td className="p-2">
+                            </TableCell>
+                            <TableCell>
                               <Input
                                 type="number"
                                 min="1"
@@ -362,8 +375,8 @@ export default function ProgramCreator({
                                 }
                                 className="text-center"
                               />
-                            </td>
-                            <td className="p-2">
+                            </TableCell>
+                            <TableCell>
                               <Input
                                 type="number"
                                 step="0.5"
@@ -377,8 +390,8 @@ export default function ProgramCreator({
                                 }
                                 className="text-center"
                               />
-                            </td>
-                            <td className="p-2">
+                            </TableCell>
+                            <TableCell>
                               <Input
                                 type="number"
                                 step="0.5"
@@ -393,8 +406,8 @@ export default function ProgramCreator({
                                 placeholder="Auto"
                                 className="text-center"
                               />
-                            </td>
-                            <td className="p-2">
+                            </TableCell>
+                            <TableCell>
                               <Input
                                 value={set.instructions}
                                 onChange={(e) =>
@@ -404,8 +417,8 @@ export default function ProgramCreator({
                                 }
                                 placeholder="Notes..."
                               />
-                            </td>
-                            <td className="p-2">
+                            </TableCell>
+                            <TableCell>
                               <Button
                                 variant="ghost"
                                 size="sm"
@@ -415,11 +428,11 @@ export default function ProgramCreator({
                               >
                                 <Trash2 className="h-4 w-4 text-red-500" />
                               </Button>
-                            </td>
-                          </tr>
+                            </TableCell>
+                          </TableRow>
                         ))}
-                      </tbody>
-                    </table>
+                      </TableBody>
+                    </Table>
                   </div>
 
                   <Button

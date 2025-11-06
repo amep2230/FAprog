@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Edit, Plus, Calendar, FileText, Copy } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -432,7 +433,7 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
                     id="edit-is-active"
                     checked={blockFormData.is_active}
                     onChange={(e) => setBlockFormData({ ...blockFormData, is_active: e.target.checked })}
-                    className="h-4 w-4 rounded border-gray-300"
+                    className="h-4 w-4 rounded border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                   />
                   <Label htmlFor="edit-is-active" className="cursor-pointer">
                     Bloc actif
@@ -538,20 +539,18 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="previous-week">Dupliquer la structure de *</Label>
-                  <select
-                    id="previous-week"
-                    value={selectedPreviousWeek}
-                    onChange={(e) => setSelectedPreviousWeek(e.target.value)}
-                    className="w-full rounded-md border border-input bg-background px-3 py-2"
-                    required
-                  >
-                    <option value="">Sélectionner une semaine</option>
-                    {sortedWeeks.map((week) => (
-                      <option key={week.id} value={week.id}>
-                        Semaine {week.week_number} - {week.name}
-                      </option>
-                    ))}
-                  </select>
+                  <Select value={selectedPreviousWeek} onValueChange={setSelectedPreviousWeek}>
+                    <SelectTrigger id="previous-week">
+                      <SelectValue placeholder="Sélectionner une semaine" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {sortedWeeks.map((week) => (
+                        <SelectItem key={week.id} value={week.id}>
+                          Semaine {week.week_number} - {week.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="dup-week-notes">Notes (optionnel)</Label>

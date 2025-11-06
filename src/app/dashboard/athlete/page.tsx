@@ -70,7 +70,7 @@ export default async function AthletePage() {
   // Récupérer tous les exercices pour le formulaire PR
   const { data: exercises } = await supabase
     .from("exercises")
-    .select("id, name, category")
+    .select("id, name, category, muscle_group")
     .order("name");
 
   // Récupérer les records personnels de l'athlète

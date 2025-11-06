@@ -20,7 +20,7 @@ interface AthleteDashboardProps {
   programs: any[];
   currentProgram?: any;
   sessionLogs?: any[];
-  exercises: Array<{ id: string; name: string; category: string }>;
+  exercises: Array<{ id: string; name: string; category: string; muscle_group: string }>;
   personalRecords?: any[];
 }
 

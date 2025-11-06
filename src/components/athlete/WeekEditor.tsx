@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Plus, Trash2, GripVertical, Info } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -15,6 +16,7 @@ interface Exercise {
   id: string;
   name: string;
   category: string;
+  muscle_group: string;
 }
 
 interface SetData {
@@ -62,6 +64,7 @@ export default function WeekEditor({ blockId, program, previousProgram, exercise
   const [isAddExerciseDialogOpen, setIsAddExerciseDialogOpen] = useState(false);
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
   const [isLoading, setIsLoading] = useState(false);
+  const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string>("");
   
   const [newExercise, setNewExercise] = useState({
     exercise_id: "",
@@ -356,24 +359,49 @@ export default function WeekEditor({ blockId, program, previousProgram, exercise
           <DialogHeader>
             <DialogTitle>Ajouter un exercice</DialogTitle>
             <DialogDescription>
-              Ajoutez un nouvel exercice à cette séance
+              Sélectionnez un muscle, puis choisissez un exercice
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
+            {/* Menu déroulant pour le muscle */}
+            <div className="grid gap-2">
+              <Label>Groupe musculaire *</Label>
+              <Select value={selectedMuscleGroup} onValueChange={(value) => {
+                setSelectedMuscleGroup(value);
+                setNewExercise({ ...newExercise, exercise_id: "" });
+              }}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Sélectionner un muscle..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from(new Set(exercises.map(ex => ex.muscle_group)))
+                    .sort()
+                    .map((muscleGroup) => (
+                      <SelectItem key={muscleGroup} value={muscleGroup}>
+                        {muscleGroup}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Menu déroulant pour l'exercice (filtré par muscle) */}
             <div className="grid gap-2">
               <Label>Exercice *</Label>
-              <select
-                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                value={newExercise.exercise_id}
-                onChange={(e) => setNewExercise({ ...newExercise, exercise_id: e.target.value })}
-              >
-                <option value="">Sélectionner un exercice...</option>
-                {exercises.map((exercise) => (
-                  <option key={exercise.id} value={exercise.id}>
-                    {exercise.name} ({exercise.category})
-                  </option>
-                ))}
-              </select>
+              <Select value={newExercise.exercise_id} onValueChange={(value) => setNewExercise({ ...newExercise, exercise_id: value })} disabled={!selectedMuscleGroup}>
+                <SelectTrigger disabled={!selectedMuscleGroup}>
+                  <SelectValue placeholder="Sélectionner un exercice..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {exercises
+                    .filter(ex => ex.muscle_group === selectedMuscleGroup)
+                    .map((exercise) => (
+                      <SelectItem key={exercise.id} value={exercise.id}>
+                        {exercise.name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
@@ -421,7 +449,10 @@ export default function WeekEditor({ blockId, program, previousProgram, exercise
           <DialogFooter>
             <Button
               variant="outline"
-              onClick={() => setIsAddExerciseDialogOpen(false)}
+              onClick={() => {
+                setIsAddExerciseDialogOpen(false);
+                setSelectedMuscleGroup("");
+              }}
               disabled={isLoading}
             >
               Annuler

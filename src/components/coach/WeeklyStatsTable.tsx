@@ -1,6 +1,14 @@
 "use client";
 
 import { useMemo } from "react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 interface WeeklyStatsProps {
   sessionLogs: any[];
@@ -50,55 +58,43 @@ export default function WeeklyStatsTable({ sessionLogs }: WeeklyStatsProps) {
         }
 
         const stats = data[weekKey][exerciseName];
+        stats.series += 1;
+        stats.maxWeight = Math.max(stats.maxWeight, setLog.actual_weight || 0);
+        stats.tonnage += (setLog.actual_weight || 0) * (setLog.actual_reps || 0);
 
-        // Compter les séries
-        stats.series++;
-
-        // Max weight
-        if (setLog.actual_weight && setLog.actual_weight > stats.maxWeight) {
-          stats.maxWeight = setLog.actual_weight;
-        }
-
-        // Tonnage
-        if (setLog.actual_weight && setLog.actual_reps) {
-          stats.tonnage += setLog.actual_weight * setLog.actual_reps;
-        }
-
-        // RPE
         if (setLog.actual_rpe) {
           stats.rpeTotal += setLog.actual_rpe;
-          stats.rpeCount++;
+          stats.rpeCount += 1;
         }
 
-        // Estimated 1RM (formule Epley: weight * (1 + reps/30))
+        // Utiliser Epley pour estimer le 1RM
         if (setLog.actual_weight && setLog.actual_reps) {
-          const estimated = setLog.actual_weight * (1 + setLog.actual_reps / 30);
-          if (estimated > stats.estimated1RM) {
-            stats.estimated1RM = estimated;
-          }
+          const weight = setLog.actual_weight;
+          const reps = setLog.actual_reps;
+          const estimated1RM = weight * (1 + reps / 30);
+          stats.estimated1RM = Math.max(stats.estimated1RM, estimated1RM);
         }
       });
     });
 
-    const sortedWeeks = Object.keys(data).sort((a, b) => {
-      const numA = parseInt(a.replace("S", ""));
-      const numB = parseInt(b.replace("S", ""));
-      return numA - numB;
-    });
+    const sortedExercises = Array.from(exercisesSet).sort();
+    const sortedWeeks = Object.keys(data).sort();
 
     return {
       weeklyData: data,
-      allExercises: Array.from(exercisesSet).sort(),
+      allExercises: sortedExercises,
       weeks: sortedWeeks,
     };
   }, [sessionLogs]);
 
-  // Grouper les exercices par catégorie
-  const mainLifts = allExercises.filter((ex) =>
-    ex.toLowerCase().includes("squat") ||
-    ex.toLowerCase().includes("bench") ||
-    ex.toLowerCase().includes("deadlift")
-  );
+  const mainLifts = [
+    "Squat",
+    "Bench Press",
+    "Deadlift",
+    "Squat Parallèles",
+    "Bench Press Incliné",
+  ].filter((lift) => allExercises.some((ex) => ex.toLowerCase().includes(lift.toLowerCase())));
+
   const accessories = allExercises.filter((ex) => !mainLifts.includes(ex));
 
   if (weeks.length === 0) {
@@ -109,61 +105,58 @@ export default function WeeklyStatsTable({ sessionLogs }: WeeklyStatsProps) {
     );
   }
 
+  const getRowColor = (exercise: string) => {
+    if (exercise.toLowerCase().includes("squat")) return "bg-pink-100";
+    if (exercise.toLowerCase().includes("bench")) return "bg-blue-100";
+    return "bg-purple-100";
+  };
+
   return (
     <div className="space-y-8">
-      {/* Tableau: Nombre de séries */}
+      {/* Table: Nombre de séries */}
       <div className="overflow-x-auto">
         <h3 className="text-lg font-semibold mb-4 flex items-center">
           <span className="bg-blue-100 text-blue-700 px-3 py-1 rounded-full text-sm mr-2">
             Nombre de séries
           </span>
         </h3>
-        <table className="min-w-full border-collapse border border-gray-300">
-          <thead>
-            <tr className="bg-gray-800 text-white">
-              <th className="border border-gray-300 px-4 py-2 text-left">Mouvement</th>
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-gray-800 text-white">
+              <TableHead className="text-left text-white">Mouvement</TableHead>
               {weeks.map((week) => (
-                <th key={week} className="border border-gray-300 px-4 py-2 text-center">
+                <TableHead key={week} className="text-center text-white">
                   {week}
-                </th>
+                </TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {mainLifts.map((exercise, idx) => (
-              <tr
-                key={exercise}
-                className={
-                  exercise.toLowerCase().includes("squat")
-                    ? "bg-pink-100"
-                    : exercise.toLowerCase().includes("bench")
-                    ? "bg-blue-100"
-                    : "bg-purple-100"
-                }
-              >
-                <td className="border border-gray-300 px-4 py-2 font-medium">{exercise}</td>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {mainLifts.map((exercise) => (
+              <TableRow key={exercise} className={getRowColor(exercise)}>
+                <TableCell className="font-medium">{exercise}</TableCell>
                 {weeks.map((week) => (
-                  <td key={week} className="border border-gray-300 px-4 py-2 text-center">
+                  <TableCell key={week} className="text-center">
                     {weeklyData[week]?.[exercise]?.series || "-"}
-                  </td>
+                  </TableCell>
                 ))}
-              </tr>
+              </TableRow>
             ))}
             {accessories.slice(0, 10).map((exercise) => (
-              <tr key={exercise} className="hover:bg-gray-50">
-                <td className="border border-gray-300 px-4 py-2">{exercise}</td>
+              <TableRow key={exercise} className="hover:bg-gray-50">
+                <TableCell>{exercise}</TableCell>
                 {weeks.map((week) => (
-                  <td key={week} className="border border-gray-300 px-4 py-2 text-center">
+                  <TableCell key={week} className="text-center">
                     {weeklyData[week]?.[exercise]?.series || "-"}
-                  </td>
+                  </TableCell>
                 ))}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
-      {/* Tableau: Max effectués */}
+      {/* Table: Max effectués */}
       <div className="overflow-x-auto">
         <h3 className="text-lg font-semibold mb-4 flex items-center">
           <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-sm mr-2">
@@ -171,56 +164,47 @@ export default function WeeklyStatsTable({ sessionLogs }: WeeklyStatsProps) {
           </span>
           <span className="text-sm text-gray-500 ml-2">(kg)</span>
         </h3>
-        <table className="min-w-full border-collapse border border-gray-300">
-          <thead>
-            <tr className="bg-gray-800 text-white">
-              <th className="border border-gray-300 px-4 py-2 text-left">Mouvement</th>
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-gray-800 text-white">
+              <TableHead className="text-left text-white">Mouvement</TableHead>
               {weeks.map((week) => (
-                <th key={week} className="border border-gray-300 px-4 py-2 text-center">
+                <TableHead key={week} className="text-center text-white">
                   {week}
-                </th>
+                </TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {mainLifts.map((exercise) => (
-              <tr
-                key={exercise}
-                className={
-                  exercise.toLowerCase().includes("squat")
-                    ? "bg-pink-100"
-                    : exercise.toLowerCase().includes("bench")
-                    ? "bg-blue-100"
-                    : "bg-purple-100"
-                }
-              >
-                <td className="border border-gray-300 px-4 py-2 font-medium">{exercise}</td>
+              <TableRow key={exercise} className={getRowColor(exercise)}>
+                <TableCell className="font-medium">{exercise}</TableCell>
                 {weeks.map((week) => (
-                  <td key={week} className="border border-gray-300 px-4 py-2 text-center font-semibold">
+                  <TableCell key={week} className="text-center font-semibold">
                     {weeklyData[week]?.[exercise]?.maxWeight
                       ? weeklyData[week][exercise].maxWeight.toFixed(1)
                       : "-"}
-                  </td>
+                  </TableCell>
                 ))}
-              </tr>
+              </TableRow>
             ))}
             {accessories.slice(0, 10).map((exercise) => (
-              <tr key={exercise} className="hover:bg-gray-50">
-                <td className="border border-gray-300 px-4 py-2">{exercise}</td>
+              <TableRow key={exercise} className="hover:bg-gray-50">
+                <TableCell>{exercise}</TableCell>
                 {weeks.map((week) => (
-                  <td key={week} className="border border-gray-300 px-4 py-2 text-center">
+                  <TableCell key={week} className="text-center">
                     {weeklyData[week]?.[exercise]?.maxWeight
                       ? weeklyData[week][exercise].maxWeight.toFixed(1)
                       : "-"}
-                  </td>
+                  </TableCell>
                 ))}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
-      {/* Tableau: Tonnage */}
+      {/* Table: Tonnage */}
       <div className="overflow-x-auto">
         <h3 className="text-lg font-semibold mb-4 flex items-center">
           <span className="bg-purple-100 text-purple-700 px-3 py-1 rounded-full text-sm mr-2">
@@ -228,90 +212,72 @@ export default function WeeklyStatsTable({ sessionLogs }: WeeklyStatsProps) {
           </span>
           <span className="text-sm text-gray-500 ml-2">(kg total)</span>
         </h3>
-        <table className="min-w-full border-collapse border border-gray-300">
-          <thead>
-            <tr className="bg-gray-800 text-white">
-              <th className="border border-gray-300 px-4 py-2 text-left">Mouvement</th>
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-gray-800 text-white">
+              <TableHead className="text-left text-white">Mouvement</TableHead>
               {weeks.map((week) => (
-                <th key={week} className="border border-gray-300 px-4 py-2 text-center">
+                <TableHead key={week} className="text-center text-white">
                   {week}
-                </th>
+                </TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {mainLifts.map((exercise) => (
-              <tr
-                key={exercise}
-                className={
-                  exercise.toLowerCase().includes("squat")
-                    ? "bg-pink-100"
-                    : exercise.toLowerCase().includes("bench")
-                    ? "bg-blue-100"
-                    : "bg-purple-100"
-                }
-              >
-                <td className="border border-gray-300 px-4 py-2 font-medium">{exercise}</td>
+              <TableRow key={exercise} className={getRowColor(exercise)}>
+                <TableCell className="font-medium">{exercise}</TableCell>
                 {weeks.map((week) => (
-                  <td key={week} className="border border-gray-300 px-4 py-2 text-center font-semibold">
+                  <TableCell key={week} className="text-center font-semibold">
                     {weeklyData[week]?.[exercise]?.tonnage
                       ? Math.round(weeklyData[week][exercise].tonnage).toLocaleString()
                       : "-"}
-                  </td>
+                  </TableCell>
                 ))}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
-      {/* Tableau: RPE moyen */}
+      {/* Table: RPE moyen */}
       <div className="overflow-x-auto">
         <h3 className="text-lg font-semibold mb-4 flex items-center">
           <span className="bg-yellow-100 text-yellow-700 px-3 py-1 rounded-full text-sm mr-2">
             RPE moyen
           </span>
         </h3>
-        <table className="min-w-full border-collapse border border-gray-300">
-          <thead>
-            <tr className="bg-gray-800 text-white">
-              <th className="border border-gray-300 px-4 py-2 text-left">Mouvement</th>
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-gray-800 text-white">
+              <TableHead className="text-left text-white">Mouvement</TableHead>
               {weeks.map((week) => (
-                <th key={week} className="border border-gray-300 px-4 py-2 text-center">
+                <TableHead key={week} className="text-center text-white">
                   {week}
-                </th>
+                </TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {mainLifts.map((exercise) => (
-              <tr
-                key={exercise}
-                className={
-                  exercise.toLowerCase().includes("squat")
-                    ? "bg-pink-100"
-                    : exercise.toLowerCase().includes("bench")
-                    ? "bg-blue-100"
-                    : "bg-purple-100"
-                }
-              >
-                <td className="border border-gray-300 px-4 py-2 font-medium">{exercise}</td>
+              <TableRow key={exercise} className={getRowColor(exercise)}>
+                <TableCell className="font-medium">{exercise}</TableCell>
                 {weeks.map((week) => {
                   const stats = weeklyData[week]?.[exercise];
                   const avgRPE = stats && stats.rpeCount > 0 ? stats.rpeTotal / stats.rpeCount : null;
                   return (
-                    <td key={week} className="border border-gray-300 px-4 py-2 text-center">
+                    <TableCell key={week} className="text-center">
                       {avgRPE ? avgRPE.toFixed(1) : "-"}
-                    </td>
+                    </TableCell>
                   );
                 })}
-              </tr>
+              </TableRow>
             ))}
-          </tbody>
-        </table>
+          </TableBody>
+        </Table>
       </div>
 
-      {/* Tableau: 1RM théorique */}
+      {/* Table: 1RM théorique */}
       <div className="overflow-x-auto">
         <h3 className="text-lg font-semibold mb-4 flex items-center">
           <span className="bg-orange-100 text-orange-700 px-3 py-1 rounded-full text-sm mr-2">
@@ -319,54 +285,45 @@ export default function WeeklyStatsTable({ sessionLogs }: WeeklyStatsProps) {
           </span>
           <span className="text-sm text-gray-500 ml-2">(kg)</span>
         </h3>
-        <table className="min-w-full border-collapse border border-gray-300">
-          <thead>
-            <tr className="bg-gray-800 text-white">
-              <th className="border border-gray-300 px-4 py-2 text-left">1RM</th>
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-gray-800 text-white">
+              <TableHead className="text-left text-white">1RM</TableHead>
               {weeks.map((week) => (
-                <th key={week} className="border border-gray-300 px-4 py-2 text-center">
+                <TableHead key={week} className="text-center text-white">
                   {week}
-                </th>
+                </TableHead>
               ))}
-            </tr>
-          </thead>
-          <tbody>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
             {mainLifts.map((exercise) => (
-              <tr
-                key={exercise}
-                className={
-                  exercise.toLowerCase().includes("squat")
-                    ? "bg-pink-100"
-                    : exercise.toLowerCase().includes("bench")
-                    ? "bg-blue-100"
-                    : "bg-purple-100"
-                }
-              >
-                <td className="border border-gray-300 px-4 py-2 font-medium">{exercise}</td>
+              <TableRow key={exercise} className={getRowColor(exercise)}>
+                <TableCell className="font-medium">{exercise}</TableCell>
                 {weeks.map((week) => (
-                  <td key={week} className="border border-gray-300 px-4 py-2 text-center font-semibold">
+                  <TableCell key={week} className="text-center font-semibold">
                     {weeklyData[week]?.[exercise]?.estimated1RM
                       ? weeklyData[week][exercise].estimated1RM.toFixed(1)
                       : "-"}
-                  </td>
+                  </TableCell>
                 ))}
-              </tr>
+              </TableRow>
             ))}
-            <tr className="bg-gray-200 font-bold">
-              <td className="border border-gray-300 px-4 py-2">Total SBD</td>
+            <TableRow className="bg-gray-200 font-bold">
+              <TableCell className="font-bold">Total SBD</TableCell>
               {weeks.map((week) => {
                 const total = mainLifts.reduce((sum, exercise) => {
                   return sum + (weeklyData[week]?.[exercise]?.estimated1RM || 0);
                 }, 0);
                 return (
-                  <td key={week} className="border border-gray-300 px-4 py-2 text-center">
+                  <TableCell key={week} className="text-center font-bold">
                     {total > 0 ? total.toFixed(1) : "-"}
-                  </td>
+                  </TableCell>
                 );
               })}
-            </tr>
-          </tbody>
-        </table>
+            </TableRow>
+          </TableBody>
+        </Table>
       </div>
     </div>
   );

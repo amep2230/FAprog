@@ -28,7 +28,16 @@ export async function signup(formData: FormData) {
   const name = formData.get("name") as string;
   const role = formData.get("role") as string;
 
-  // Créer l'utilisateur
+  // Validation des données
+  if (!email || !password || !name || !role) {
+    return { error: "Tous les champs sont requis" };
+  }
+
+  if (password.length < 6) {
+    return { error: "Le mot de passe doit contenir au moins 6 caractères" };
+  }
+
+  // Créer l'utilisateur avec les métadonnées
   const { data, error } = await supabase.auth.signUp({
     email,
     password,
@@ -50,29 +59,47 @@ export async function signup(formData: FormData) {
     return { error: "Erreur lors de la création du compte" };
   }
 
+  // Attendre un peu pour que le trigger se déclenche
+  await new Promise((resolve) => setTimeout(resolve, 500));
+
   // Vérifier si le profil a été créé par le trigger
-  // Sinon le créer manuellement
-  const { data: profile, error: profileError } = await supabase
-    .from("profiles")
-    .select("id")
-    .eq("id", data.user.id)
-    .single();
-
-  if (profileError || !profile) {
-    // Créer le profil manuellement
-    const { error: insertError } = await supabase
+  try {
+    const { data: profile, error: selectError } = await supabase
       .from("profiles")
-      .insert({
-        id: data.user.id,
-        name,
-        email,
-        role,
-      });
+      .select("id")
+      .eq("id", data.user.id)
+      .single();
 
-    if (insertError) {
-      console.error("Error creating profile:", insertError);
-      return { error: "Erreur lors de la création du profil" };
+    if (profile) {
+      // Le profil existe déjà (créé par le trigger)
+      console.log("Profile created by trigger successfully");
+    } else if (selectError) {
+      // Le profil n'existe pas, le créer manuellement
+      console.log("Profile not found, creating manually:", selectError.message);
+
+      const { error: insertError } = await supabase
+        .from("profiles")
+        .insert({
+          id: data.user.id,
+          name,
+          email,
+          role,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        });
+
+      if (insertError) {
+        console.error("Error creating profile manually:", insertError);
+        return {
+          error: `Erreur lors de la création du profil: ${insertError.message}`,
+        };
+      }
+
+      console.log("Profile created manually successfully");
     }
+  } catch (err) {
+    console.error("Unexpected error during profile creation:", err);
+    return { error: "Une erreur inattendue est survenue" };
   }
 
   // Si la confirmation par email est désactivée, rediriger
