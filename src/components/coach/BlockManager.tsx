@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, ChevronRight, Calendar, Check } from "lucide-react";
+import { Plus, ChevronRight, Calendar, Check, Clock } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 
 interface TrainingBlock {
@@ -19,6 +19,7 @@ interface TrainingBlock {
   start_date: string | null;
   end_date: string | null;
   is_active: boolean;
+  block_type: "force" | "general";
   created_at: string;
   weeks?: any[];
 }
@@ -70,6 +71,7 @@ export default function BlockManager({ athleteId, blocks, coachId }: BlockManage
         start_date: formData.start_date || null,
         end_date: formData.end_date || null,
         is_active: formData.is_active,
+        block_type: formData.block_type,
       });
 
       console.log("Insert result:", { data, error });
@@ -99,6 +101,18 @@ export default function BlockManager({ athleteId, blocks, coachId }: BlockManage
 
   const handleBlockClick = (blockId: string) => {
     router.push(`/dashboard/coach/athletes/${athleteId}/blocks/${blockId}`);
+  };
+
+  // Fonction pour vérifier si un bloc est en cours
+  const isBlockOngoing = (block: TrainingBlock): boolean => {
+    if (!block.start_date || !block.end_date) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(block.start_date);
+    startDate.setHours(0, 0, 0, 0);
+    const endDate = new Date(block.end_date);
+    endDate.setHours(23, 59, 59, 999);
+    return today >= startDate && today <= endDate;
   };
 
   return (
@@ -221,6 +235,12 @@ export default function BlockManager({ athleteId, blocks, coachId }: BlockManage
                         Actif
                       </span>
                     )}
+                    {isBlockOngoing(block) && (
+                      <span className="text-xs font-normal bg-green-50 text-green-700 px-2 py-1 rounded flex items-center gap-1">
+                        <Clock className="h-3 w-3" />
+                        En cours
+                      </span>
+                    )}
                   </CardTitle>
                   {block.description && (
                     <CardDescription className="line-clamp-2">
@@ -233,16 +253,34 @@ export default function BlockManager({ athleteId, blocks, coachId }: BlockManage
             </CardHeader>
             <CardContent>
               <div className="space-y-2 text-sm">
-                {block.start_date && (
-                  <div className="flex items-center gap-2 text-gray-600">
-                    <Calendar className="h-4 w-4" />
-                    <span>
+                {/* Date de début */}
+                <div className="flex items-center gap-3">
+                  <span className="font-medium text-gray-700 w-32">Date de début</span>
+                  <span className="text-gray-600 font-medium">:</span>
+                  {block.start_date ? (
+                    <span className="text-gray-600">
                       {new Date(block.start_date).toLocaleDateString("fr-FR")}
-                      {block.end_date && ` - ${new Date(block.end_date).toLocaleDateString("fr-FR")}`}
                     </span>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 text-gray-600">
+                  ) : (
+                    <span className="text-gray-400">Non définie</span>
+                  )}
+                </div>
+
+                {/* Date de fin */}
+                <div className="flex items-center gap-3">
+                  <span className="font-medium text-gray-700 w-32">Date de fin</span>
+                  <span className="text-gray-600 font-medium">:</span>
+                  {block.end_date ? (
+                    <span className="text-gray-600">
+                      {new Date(block.end_date).toLocaleDateString("fr-FR")}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">Non définie</span>
+                  )}
+                </div>
+
+                {/* Nombre de semaines */}
+                <div className="flex items-center gap-2 pt-1 border-t text-gray-600">
                   <span className="font-medium">
                     {block.weeks?.length || 0} semaine{(block.weeks?.length || 0) > 1 ? "s" : ""}
                   </span>

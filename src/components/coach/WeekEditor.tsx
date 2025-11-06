@@ -40,6 +40,7 @@ interface Week {
     id: string;
     name: string;
     athlete_id: string;
+    block_type?: "force" | "general";
   };
   sessions: Session[];
 }
@@ -342,6 +343,10 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
     router.push(`/dashboard/coach/athletes/${athleteId}/blocks/${blockId}`);
   };
 
+  // Déterminer le type de bloc
+  const blockType = week.block?.block_type || "force";
+  const isGeneralBlock = blockType === "general";
+
   return (
     <div className="container max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
       {/* En-tête avec badge et breadcrumb */}
@@ -477,8 +482,8 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                               </Button>
                             </div>
                           )}
-                          <div className="grid grid-cols-12 gap-3 items-center pl-6 py-2 hover:bg-gray-50 rounded-md -ml-2 pl-8">
-                            <div className="col-span-2 text-sm font-medium text-gray-600">
+                          <div className={`grid gap-2 items-center pl-4 ${isGeneralBlock ? 'grid-cols-5' : 'grid-cols-6'}`}>
+                            <div className="text-sm text-muted-foreground">
                               Série {set.set_number}
                             </div>
                             <div className="col-span-2">
@@ -500,7 +505,9 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                                 />
                               </div>
                             </div>
-                            <div className="col-span-2">
+
+        {!isGeneralBlock && (                    
+        <div className="col-span-2">
                               <div className="space-y-1">
                                 <Label className="text-xs text-gray-500">Poids (kg)</Label>
                                 <div className="relative">
@@ -570,9 +577,9 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                                   })()}
                                 </div>
                               </div>
-                            </div>
+                            </div> }
                             <div className="col-span-4">
-                              <div className="space-y-1">
+                              <div className="space-y-1" className={isGeneralBlock ? "col-span-1" : "col-span-2"}>
                                 <Label className="text-xs text-gray-500">Notes</Label>
                                 <Input
                                   placeholder="Notes..."
