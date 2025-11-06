@@ -39,6 +39,7 @@ export default function BlockManager({ athleteId, blocks, coachId }: BlockManage
     start_date: "",
     end_date: "",
     is_active: false,
+    block_type: "force" as "force" | "general",
   });
 
   // Trier les blocs par ordre chronologique inverse (plus récent en premier)
@@ -85,6 +86,7 @@ export default function BlockManager({ athleteId, blocks, coachId }: BlockManage
         start_date: "",
         end_date: "",
         is_active: false,
+        block_type: "force",
       });
       router.refresh();
     } catch (error) {
@@ -122,6 +124,18 @@ export default function BlockManager({ athleteId, blocks, coachId }: BlockManage
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label htmlFor="block_type">Type de bloc *</Label>
+                  <Select value={formData.block_type} onValueChange={(value) => setFormData({ ...formData, block_type: value as "force" | "general" })}>
+                    <SelectTrigger id="block_type">
+                      <SelectValue placeholder="Sélectionner un type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="force">Force</SelectItem>
+                      <SelectItem value="general">Général</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="name">Nom du bloc *</Label>
                   <Input
