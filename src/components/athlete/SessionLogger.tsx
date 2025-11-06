@@ -206,7 +206,7 @@ export default function SessionLogger({ session, athleteId, onClose }: SessionLo
                         onChange={(e) =>
                           handleSetChange(idx, "completed", e.target.checked)
                         }
-                        className="h-4 w-4 sm:h-5 sm:w-5"
+                        className="h-4 w-4 sm:h-5 sm:w-5 rounded border border-primary ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       />
                       <Label className="text-sm sm:text-base">Fait</Label>
                     </div>

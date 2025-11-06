@@ -68,6 +68,7 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>("");
   const [exerciseSearchTerm, setExerciseSearchTerm] = useState("");
+  const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string>("");
 
   // Charger les exercices
   useEffect(() => {
@@ -490,10 +491,30 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
           <DialogHeader>
             <DialogTitle>Ajouter un exercice</DialogTitle>
             <DialogDescription>
-              Sélectionnez un exercice à ajouter à la séance
+              Sélectionnez un muscle, puis choisissez un exercice
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Menu déroulant pour le muscle */}
+            <div className="space-y-2">
+              <Label htmlFor="muscle-select">Groupe musculaire</Label>
+              <Select value={selectedMuscleGroup} onValueChange={setSelectedMuscleGroup}>
+                <SelectTrigger id="muscle-select">
+                  <SelectValue placeholder="Choisir un muscle" />
+                </SelectTrigger>
+                <SelectContent>
+                  {Array.from(new Set(exercises.map(ex => ex.muscle_group)))
+                    .sort()
+                    .map((muscleGroup) => (
+                      <SelectItem key={muscleGroup} value={muscleGroup}>
+                        {muscleGroup}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Menu déroulant pour l'exercice (filtré par muscle) */}
             <div className="space-y-2">
               <Label htmlFor="exercise-search">Rechercher un exercice</Label>
               <Input
@@ -501,24 +522,26 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                 placeholder="Tapez pour rechercher..."
                 value={exerciseSearchTerm}
                 onChange={(e) => setExerciseSearchTerm(e.target.value)}
+                disabled={!selectedMuscleGroup}
               />
             </div>
+            
             <div className="space-y-2">
               <Label htmlFor="exercise-select">Exercice</Label>
-              <Select value={selectedExerciseId} onValueChange={setSelectedExerciseId}>
+              <Select value={selectedExerciseId} onValueChange={setSelectedExerciseId} disabled={!selectedMuscleGroup}>
                 <SelectTrigger id="exercise-select">
                   <SelectValue placeholder="Choisir un exercice" />
                 </SelectTrigger>
                 <SelectContent className="max-h-[300px]">
                   {exercises
                     .filter(ex => 
-                      exerciseSearchTerm === "" || 
-                      ex.name.toLowerCase().includes(exerciseSearchTerm.toLowerCase()) ||
-                      ex.muscle_group.toLowerCase().includes(exerciseSearchTerm.toLowerCase())
+                      ex.muscle_group === selectedMuscleGroup &&
+                      (exerciseSearchTerm === "" || 
+                       ex.name.toLowerCase().includes(exerciseSearchTerm.toLowerCase()))
                     )
                     .map((exercise) => (
                       <SelectItem key={exercise.id} value={exercise.id}>
-                        {exercise.name} - {exercise.muscle_group}
+                        {exercise.name}
                       </SelectItem>
                     ))}
                 </SelectContent>
@@ -532,6 +555,7 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                 setIsAddExerciseDialogOpen(false);
                 setSelectedExerciseId("");
                 setExerciseSearchTerm("");
+                setSelectedMuscleGroup("");
               }}
             >
               Annuler

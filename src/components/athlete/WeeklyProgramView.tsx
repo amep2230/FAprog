@@ -2,6 +2,14 @@
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Dumbbell, Calendar, CheckCircle } from "lucide-react";
 import { useState } from "react";
 import SessionLogger from "./SessionLogger";
@@ -104,64 +112,52 @@ export default function WeeklyProgramView({
                 </div>
               </CardHeader>
               <CardContent className="pt-4 sm:pt-6 px-0 sm:px-6">
-                {/* Table des exercices style Excel */}
+                {/* Table des exercices */}
                 <div className="overflow-x-auto">
-                  <table className="w-full border-collapse min-w-full sm:min-w-[640px]">
-                    <thead>
-                      <tr className="bg-gray-100">
-                        <th className="border border-gray-300 px-2 py-2 text-left font-semibold text-xs w-[35%] sm:w-40 sm:text-sm sm:px-4">
-                          Exercice
-                        </th>
-                        <th className="border border-gray-300 px-1 py-2 text-center font-semibold text-xs w-[10%] sm:w-20 sm:text-sm sm:px-3">
-                          Sér
-                        </th>
-                        <th className="border border-gray-300 px-1 py-2 text-center font-semibold text-xs w-[13%] sm:w-20 sm:text-sm sm:px-3">
-                          Rép
-                        </th>
-                        <th className="border border-gray-300 px-1 py-2 text-center font-semibold text-xs w-[13%] sm:w-20 sm:text-sm sm:px-3">
-                          RPE
-                        </th>
-                        <th className="border border-gray-300 px-1 py-2 text-center font-semibold text-xs w-[29%] sm:w-24 sm:text-sm sm:px-3">
-                          Charge
-                        </th>
-                        <th className="border border-gray-300 px-2 sm:px-4 py-2 text-left font-semibold text-xs sm:text-sm hidden md:table-cell">
-                          Instructions
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody>
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="bg-gray-100">
+                        <TableHead className="text-left">Exercice</TableHead>
+                        <TableHead className="text-center">Sér</TableHead>
+                        <TableHead className="text-center">Rép</TableHead>
+                        <TableHead className="text-center">RPE</TableHead>
+                        <TableHead className="text-center">Charge</TableHead>
+                        <TableHead className="text-left hidden md:table-cell">Instructions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
                       {session.sets.map((set: any, idx: number) => (
-                        <tr
+                        <TableRow
                           key={set.id}
                           className={`
                             ${idx % 2 === 0 ? "bg-white" : "bg-gray-50"}
                             hover:bg-blue-50 transition-colors
                           `}
                         >
-                          <td className="border border-gray-300 px-2 py-2 font-medium text-xs w-[35%] sm:w-40 sm:text-sm sm:px-4 sm:py-3">
+                          <TableCell className="font-medium text-xs w-[35%] sm:w-40 sm:text-sm">
                             <div className="truncate max-w-full sm:max-w-[160px]">
                               {set.exercise.name}
                             </div>
-                          </td>
-                          <td className="border border-gray-300 px-1 py-2 text-center text-xs w-[10%] sm:w-20 sm:text-sm sm:px-3 sm:py-3">
+                          </TableCell>
+                          <TableCell className="text-center text-xs w-[10%] sm:w-20 sm:text-sm">
                             {idx + 1}
-                          </td>
-                          <td className="border border-gray-300 px-1 py-2 text-center font-semibold text-xs w-[13%] sm:w-20 sm:text-sm sm:px-3 sm:py-3">
+                          </TableCell>
+                          <TableCell className="text-center font-semibold text-xs w-[13%] sm:w-20 sm:text-sm">
                             {set.reps}
-                          </td>
-                          <td className="border border-gray-300 px-1 py-2 text-center font-semibold text-xs w-[13%] sm:w-20 sm:text-sm sm:px-3 sm:py-3">
+                          </TableCell>
+                          <TableCell className="text-center font-semibold text-xs w-[13%] sm:w-20 sm:text-sm">
                             {set.rpe}
-                          </td>
-                          <td className="border border-gray-300 px-1 py-2 text-center font-bold text-blue-600 text-xs w-[29%] sm:w-24 sm:text-sm sm:px-3 sm:py-3">
+                          </TableCell>
+                          <TableCell className="text-center font-bold text-blue-600 text-xs w-[29%] sm:w-24 sm:text-sm">
                             {set.prescribed_weight ? `${set.prescribed_weight} kg` : "-"}
-                          </td>
-                          <td className="border border-gray-300 px-2 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm text-gray-600 hidden md:table-cell">
+                          </TableCell>
+                          <TableCell className="text-xs sm:text-sm text-gray-600 hidden md:table-cell">
                             {set.instructions || "-"}
-                          </td>
-                        </tr>
+                          </TableCell>
+                        </TableRow>
                       ))}
-                    </tbody>
-                  </table>
+                    </TableBody>
+                  </Table>
                 </div>
 
                 {/* Commentaires ou notes additionnels */}
