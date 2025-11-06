@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Edit, Plus, Calendar, FileText, Copy } from "lucide-react";
+import { ArrowLeft, Edit, Plus, Calendar, FileText, Copy, Trash2 } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -43,6 +43,7 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
   const router = useRouter();
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddWeekDialogOpen, setIsAddWeekDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [createMode, setCreateMode] = useState<"scratch" | "duplicate">("scratch");
   const [selectedPreviousWeek, setSelectedPreviousWeek] = useState<string>("");
@@ -61,8 +62,8 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
     notes: "",
   });
 
-  // Trier les semaines par numéro décroissant (plus récent en premier)
-  const sortedWeeks = [...(block.weeks || [])].sort((a, b) => b.week_number - a.week_number);
+  // Trier les semaines par numéro croissant (Semaine 1 en premier)
+  const sortedWeeks = [...(block.weeks || [])].sort((a, b) => a.week_number - b.week_number);
 
   const handleUpdateBlock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,6 +99,30 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
     } catch (error) {
       console.error("Erreur lors de la mise à jour du bloc:", error);
       alert("Erreur lors de la mise à jour du bloc");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleDeleteBlock = async () => {
+    setIsLoading(true);
+
+    try {
+      const supabase = createClient();
+
+      const { error } = await supabase
+        .from("training_blocks")
+        .delete()
+        .eq("id", block.id);
+
+      if (error) throw error;
+
+      setIsDeleteDialogOpen(false);
+      router.push(`/dashboard/coach/athletes/${athleteId}`);
+      router.refresh();
+    } catch (error) {
+      console.error("Erreur lors de la suppression du bloc:", error);
+      alert("Erreur lors de la suppression du bloc");
     } finally {
       setIsLoading(false);
     }
@@ -212,7 +237,7 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
           continue;
         }
 
-        // Dupliquer les sets (avec RPE et charges réinitialisés)
+        // Dupliquer les sets (avec charges et RPE de la semaine précédente)
         if (session.sets && session.sets.length > 0) {
           const setsToInsert = session.sets.map((set: any) => ({
             session_id: newSession.id,
@@ -220,8 +245,8 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
             exercise_type: set.exercise_type,
             set_number: set.set_number,
             prescribed_reps: set.prescribed_reps,
-            prescribed_weight: null, // Charge à null pour remplir
-            prescribed_rpe: null, // RPE à null pour remplir
+            prescribed_weight: set.prescribed_weight, // Garde la charge de N-1
+            prescribed_rpe: set.prescribed_rpe, // Garde le RPE de N-1
             notes: set.notes,
           }));
 
@@ -284,6 +309,10 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
             <Button onClick={() => setIsAddWeekDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Ajouter une semaine
+            </Button>
+            <Button variant="destructive" onClick={() => setIsDeleteDialogOpen(true)}>
+              <Trash2 className="mr-2 h-4 w-4" />
+              Supprimer le bloc
             </Button>
           </div>
         </div>
@@ -584,7 +613,7 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
                 </div>
                 <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
                   <p className="text-sm text-amber-900">
-                    <strong>Note:</strong> La structure (séances et exercices) sera copiée. Les charges et RPE seront remis à zéro.
+                    <strong>Note:</strong> La structure complète (séances, exercices, charges et RPE) sera copiée depuis la semaine sélectionnée. Vous pourrez modifier les valeurs après création.
                   </p>
                 </div>
               </TabsContent>
@@ -599,6 +628,35 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
                 disabled={isLoading || (createMode === "duplicate" && (!selectedPreviousWeek || sortedWeeks.length === 0))}
               >
                 {isLoading ? "Création..." : "Créer la semaine"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog - Supprimer le bloc */}
+        <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Supprimer le bloc ?</DialogTitle>
+              <DialogDescription>
+                Cette action est irréversible. Toutes les semaines, séances et exercices de ce bloc seront définitivement supprimés.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 my-4">
+              <p className="text-sm text-red-900">
+                <strong>⚠️ Attention :</strong> Vous êtes sur le point de supprimer le bloc <strong>&quot;{block.name}&quot;</strong> qui contient <strong>{block.weeks?.length || 0} semaine(s)</strong>.
+              </p>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>
+                Annuler
+              </Button>
+              <Button 
+                variant="destructive" 
+                onClick={handleDeleteBlock}
+                disabled={isLoading}
+              >
+                {isLoading ? "Suppression..." : "Supprimer définitivement"}
               </Button>
             </DialogFooter>
           </DialogContent>
