@@ -293,20 +293,39 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
           <CardHeader>
             <CardTitle>Informations</CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-3">
             {block.description && (
               <p className="text-gray-600">{block.description}</p>
             )}
-            {block.start_date && (
-              <div className="flex items-center gap-2 text-sm text-gray-600">
-                <Calendar className="h-4 w-4" />
-                <span>
-                  Du {new Date(block.start_date).toLocaleDateString("fr-FR")}
-                  {block.end_date && ` au ${new Date(block.end_date).toLocaleDateString("fr-FR")}`}
-                </span>
+            
+            {/* Dates du bloc */}
+            <div className="space-y-2 pt-2 border-t">
+              <div className="flex items-center gap-3 text-sm">
+                <span className="font-medium text-gray-700 w-32">Date de début</span>
+                <span className="text-gray-600 font-medium">:</span>
+                {block.start_date ? (
+                  <span className="text-gray-600">
+                    {new Date(block.start_date).toLocaleDateString("fr-FR")}
+                  </span>
+                ) : (
+                  <span className="text-gray-400">Non définie</span>
+                )}
               </div>
-            )}
-            <div className="text-sm text-gray-600">
+              <div className="flex items-center gap-3 text-sm">
+                <span className="font-medium text-gray-700 w-32">Date de fin</span>
+                <span className="text-gray-600 font-medium">:</span>
+                {block.end_date ? (
+                  <span className="text-gray-600">
+                    {new Date(block.end_date).toLocaleDateString("fr-FR")}
+                  </span>
+                ) : (
+                  <span className="text-gray-400">Non définie</span>
+                )}
+              </div>
+            </div>
+
+            {/* Nombre de semaines */}
+            <div className="text-sm text-gray-600 pt-2 border-t">
               <span className="font-medium">
                 {block.weeks?.length || 0} semaine{(block.weeks?.length || 0) > 1 ? "s" : ""}
               </span>
@@ -348,8 +367,7 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
                         Semaine {week.week_number} - {week.name}
                       </h3>
                       <p className="text-sm text-gray-500">
-                        {week.sessions?.length || 0} séance{(week.sessions?.length || 0) > 1 ? "s" : ""} •{" "}
-                        Créé le {new Date(week.created_at).toLocaleDateString("fr-FR")}
+                        {week.sessions?.length || 0} séance{(week.sessions?.length || 0) > 1 ? "s" : ""}
                       </p>
                       {week.notes && (
                         <p className="text-sm text-gray-600 mt-1 line-clamp-1">

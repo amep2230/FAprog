@@ -40,6 +40,7 @@ interface Week {
     id: string;
     name: string;
     athlete_id: string;
+    block_type?: "force" | "general";
   };
   sessions: Session[];
 }
@@ -270,6 +271,10 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
     router.push(`/dashboard/coach/athletes/${athleteId}/blocks/${blockId}`);
   };
 
+  // Déterminer le type de bloc
+  const blockType = week.block?.block_type || "force";
+  const isGeneralBlock = blockType === "general";
+
   return (
     <div className="space-y-6">
       {/* En-tête */}
@@ -375,7 +380,7 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                               </Button>
                             </div>
                           )}
-                          <div className="grid grid-cols-6 gap-2 items-center pl-4">
+                          <div className={`grid gap-2 items-center pl-4 ${isGeneralBlock ? 'grid-cols-5' : 'grid-cols-6'}`}>
                             <div className="text-sm text-muted-foreground">
                               Série {set.set_number}
                             </div>
@@ -409,25 +414,27 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                                 }
                               />
                             </div>
-                            <div>
-                              <Input
-                                type="number"
-                                placeholder="RPE"
-                                min="0"
-                                max="10"
-                                step="0.5"
-                                value={set.prescribed_rpe || ""}
-                                onChange={(e) =>
-                                  handleUpdateSet(
-                                    session.id!,
-                                    set.id!,
-                                    "prescribed_rpe",
-                                    e.target.value ? parseFloat(e.target.value) : null
-                                  )
-                                }
-                              />
-                            </div>
-                            <div className="col-span-2">
+                            {!isGeneralBlock && (
+                              <div>
+                                <Input
+                                  type="number"
+                                  placeholder="RPE"
+                                  min="0"
+                                  max="10"
+                                  step="0.5"
+                                  value={set.prescribed_rpe || ""}
+                                  onChange={(e) =>
+                                    handleUpdateSet(
+                                      session.id!,
+                                      set.id!,
+                                      "prescribed_rpe",
+                                      e.target.value ? parseFloat(e.target.value) : null
+                                    )
+                                  }
+                                />
+                              </div>
+                            )}
+                            <div className={isGeneralBlock ? "col-span-1" : "col-span-2"}>
                               <Input
                                 placeholder="Notes..."
                                 value={set.notes || ""}
