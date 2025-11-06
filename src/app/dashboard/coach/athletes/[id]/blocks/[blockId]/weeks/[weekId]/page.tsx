@@ -31,7 +31,8 @@ export default async function WeekPage({ params }: PageProps) {
       block:training_blocks (
         id,
         name,
-        athlete_id
+        athlete_id,
+        block_type
       ),
       sessions (
         id,
