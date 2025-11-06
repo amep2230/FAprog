@@ -487,22 +487,38 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
 
       {/* Dialog pour ajouter un exercice */}
       <Dialog open={isAddExerciseDialogOpen} onOpenChange={setIsAddExerciseDialogOpen}>
-        <DialogContent>
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Ajouter un exercice</DialogTitle>
             <DialogDescription>
-              Sélectionnez un muscle, puis choisissez un exercice
+              Recherchez et sélectionnez un exercice
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            {/* Menu déroulant pour le muscle */}
+            {/* Barre de recherche */}
             <div className="space-y-2">
-              <Label htmlFor="muscle-select">Groupe musculaire</Label>
-              <Select value={selectedMuscleGroup} onValueChange={setSelectedMuscleGroup}>
+              <Label htmlFor="exercise-search">Rechercher</Label>
+              <Input
+                id="exercise-search"
+                placeholder="Tapez le nom de l'exercice ou du muscle..."
+                value={exerciseSearchTerm}
+                onChange={(e) => {
+                  setExerciseSearchTerm(e.target.value);
+                  setSelectedMuscleGroup(""); // Reset muscle group when searching
+                }}
+                autoFocus
+              />
+            </div>
+
+            {/* Filtre par groupe musculaire */}
+            <div className="space-y-2">
+              <Label htmlFor="muscle-select">Filtrer par groupe musculaire (optionnel)</Label>
+              <Select value={selectedMuscleGroup || "ALL"} onValueChange={(value) => setSelectedMuscleGroup(value === "ALL" ? "" : value)}>
                 <SelectTrigger id="muscle-select">
-                  <SelectValue placeholder="Choisir un muscle" />
+                  <SelectValue placeholder="Tous les muscles" />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="ALL">Tous les muscles</SelectItem>
                   {Array.from(new Set(exercises.map(ex => ex.muscle_group)))
                     .sort()
                     .map((muscleGroup) => (
@@ -513,39 +529,47 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                 </SelectContent>
               </Select>
             </div>
-
-            {/* Menu déroulant pour l'exercice (filtré par muscle) */}
-            <div className="space-y-2">
-              <Label htmlFor="exercise-search">Rechercher un exercice</Label>
-              <Input
-                id="exercise-search"
-                placeholder="Tapez pour rechercher..."
-                value={exerciseSearchTerm}
-                onChange={(e) => setExerciseSearchTerm(e.target.value)}
-                disabled={!selectedMuscleGroup}
-              />
-            </div>
             
+            {/* Liste des exercices filtrés */}
             <div className="space-y-2">
-              <Label htmlFor="exercise-select">Exercice</Label>
-              <Select value={selectedExerciseId} onValueChange={setSelectedExerciseId} disabled={!selectedMuscleGroup}>
-                <SelectTrigger id="exercise-select">
-                  <SelectValue placeholder="Choisir un exercice" />
-                </SelectTrigger>
-                <SelectContent className="max-h-[300px]">
-                  {exercises
-                    .filter(ex => 
-                      ex.muscle_group === selectedMuscleGroup &&
-                      (exerciseSearchTerm === "" || 
-                       ex.name.toLowerCase().includes(exerciseSearchTerm.toLowerCase()))
-                    )
-                    .map((exercise) => (
-                      <SelectItem key={exercise.id} value={exercise.id}>
-                        {exercise.name}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
+              <Label>Exercices ({exercises.filter(ex => 
+                (selectedMuscleGroup === "" || ex.muscle_group === selectedMuscleGroup) &&
+                (exerciseSearchTerm === "" || 
+                 ex.name.toLowerCase().includes(exerciseSearchTerm.toLowerCase()) ||
+                 ex.muscle_group.toLowerCase().includes(exerciseSearchTerm.toLowerCase()))
+              ).length} résultats)</Label>
+              <div className="border rounded-md max-h-[400px] overflow-y-auto">
+                {exercises
+                  .filter(ex => 
+                    (selectedMuscleGroup === "" || ex.muscle_group === selectedMuscleGroup) &&
+                    (exerciseSearchTerm === "" || 
+                     ex.name.toLowerCase().includes(exerciseSearchTerm.toLowerCase()) ||
+                     ex.muscle_group.toLowerCase().includes(exerciseSearchTerm.toLowerCase()))
+                  )
+                  .map((exercise) => (
+                    <button
+                      key={exercise.id}
+                      type="button"
+                      onClick={() => setSelectedExerciseId(exercise.id)}
+                      className={`w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors border-b last:border-b-0 ${
+                        selectedExerciseId === exercise.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                      }`}
+                    >
+                      <div className="font-medium">{exercise.name}</div>
+                      <div className="text-sm text-gray-500">{exercise.muscle_group}</div>
+                    </button>
+                  ))}
+                {exercises.filter(ex => 
+                  (selectedMuscleGroup === "" || ex.muscle_group === selectedMuscleGroup) &&
+                  (exerciseSearchTerm === "" || 
+                   ex.name.toLowerCase().includes(exerciseSearchTerm.toLowerCase()) ||
+                   ex.muscle_group.toLowerCase().includes(exerciseSearchTerm.toLowerCase()))
+                ).length === 0 && (
+                  <div className="text-center py-8 text-gray-500">
+                    Aucun exercice trouvé
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           <DialogFooter>
