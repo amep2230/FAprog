@@ -363,13 +363,7 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                         >
                           {isFirstSetOfExercise && (
                             <div className="flex items-center justify-between mb-2">
-                              <Input
-                                value={set.exercise_name}
-                                onChange={(e) =>
-                                  handleUpdateSet(session.id!, set.id!, "exercise_name", e.target.value)
-                                }
-                                className="font-medium"
-                              />
+                              <h4 className="font-medium">{set.exercise_name}</h4>
                               <Button
                                 variant="ghost"
                                 size="sm"
