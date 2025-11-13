@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Trash2, Save, ArrowLeft, GripVertical } from "lucide-react";
+import { Plus, Trash2, Save, ArrowLeft, GripVertical, Pencil, Check, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { IntensificationTechniqueSelect } from "@/components/shared/IntensificationTechniqueSelect";
 import { ExerciseTypeSelect } from "@/components/shared/ExerciseTypeSelect";
@@ -81,6 +81,8 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
   const [selectedExerciseTypeForDialog, setSelectedExerciseTypeForDialog] = useState<string>("normal");
   const [previousWeekData, setPreviousWeekData] = useState<Week | null>(null);
   const [personalRecords, setPersonalRecords] = useState<Map<string, number>>(new Map());
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingSessionName, setEditingSessionName] = useState("");
 
   // Charger les PR de l'athlète
   useEffect(() => {
@@ -314,9 +316,87 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
     });
   };
 
+  const handleUpdateSessionName = async (sessionId: string, newName: string) => {
+    if (!newName.trim()) {
+      alert("Le nom de la séance ne peut pas être vide");
+      return;
+    }
+
+    const supabase = createClient();
+    const { error } = await supabase
+      .from("sessions")
+      .update({ name: newName })
+      .eq("id", sessionId);
+
+    if (error) {
+      console.error("Erreur lors de la mise à jour:", error);
+      alert("Erreur lors de la mise à jour du nom de la séance");
+      return;
+    }
+
+    // Mettre à jour l'état local
+    setWeek({
+      ...week,
+      sessions: week.sessions.map(s =>
+        s.id === sessionId ? { ...s, name: newName } : s
+      ),
+    });
+
+    // Fermer l'édition
+    setEditingSessionId(null);
+    setEditingSessionName("");
+  };
+
   const handleAddExercise = async (sessionId: string) => {
     setSelectedSessionForExercise(sessionId);
     setIsAddExerciseDialogOpen(true);
+  };
+
+  const handleAddSeries = async (sessionId: string, exerciseName: string) => {
+    const supabase = createClient();
+    const session = week.sessions.find(s => s.id === sessionId);
+    if (!session) return;
+
+    // Trouver toutes les séries de cet exercice
+    const exerciseSets = session.sets.filter(s => s.exercise_name === exerciseName);
+    if (exerciseSets.length === 0) return;
+
+    // Prendre la dernière série comme modèle
+    const lastSet = exerciseSets[exerciseSets.length - 1];
+    const newSetNumber = Math.max(...session.sets.map(s => s.set_number), 0) + 1;
+
+    // Créer une nouvelle série avec les mêmes valeurs
+    const { data: newSet, error } = await supabase
+      .from("sets")
+      .insert({
+        session_id: sessionId,
+        exercise_name: exerciseName,
+        exercise_type: lastSet.exercise_type || "main",
+        set_number: newSetNumber,
+        prescribed_reps: lastSet.prescribed_reps,
+        prescribed_weight: lastSet.prescribed_weight,
+        prescribed_rpe: lastSet.prescribed_rpe,
+        actual_rpe: lastSet.actual_rpe,
+        notes: lastSet.notes,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Erreur lors de l'ajout de la série:", error);
+      alert("Erreur lors de l'ajout de la série");
+      return;
+    }
+
+    // Mettre à jour l'état local
+    setWeek({
+      ...week,
+      sessions: week.sessions.map(s =>
+        s.id === sessionId
+          ? { ...s, sets: [...s.sets, newSet] }
+          : s
+      ),
+    });
   };
 
   const handleConfirmAddExercise = async () => {
@@ -423,21 +503,12 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
         );
         if (calculatedWeight !== null) {
           updatedSet.prescribed_weight = calculatedWeight;
-          // Mettre à jour aussi le poids dans la DB
-          await supabase
-            .from("sets")
-            .update({ prescribed_weight: calculatedWeight })
-            .eq("id", setId);
         }
         
         // Si le RPE réel n'a jamais été modifié (null ou égal à l'ancien RPE prescrit),
         // le mettre à jour avec le nouveau RPE prescrit
         if (currentSet.actual_rpe === null || currentSet.actual_rpe === currentSet.prescribed_rpe) {
           updatedSet.actual_rpe = value;
-          await supabase
-            .from("sets")
-            .update({ actual_rpe: value })
-            .eq("id", setId);
         }
       }
       
@@ -450,19 +521,10 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
         );
         if (calculatedRPE !== null) {
           updatedSet.prescribed_rpe = calculatedRPE;
-          // Mettre à jour aussi le RPE dans la DB
-          await supabase
-            .from("sets")
-            .update({ prescribed_rpe: calculatedRPE })
-            .eq("id", setId);
           
           // Si le RPE réel n'a jamais été modifié, le mettre à jour aussi
           if (currentSet.actual_rpe === null || currentSet.actual_rpe === currentSet.prescribed_rpe) {
             updatedSet.actual_rpe = calculatedRPE;
-            await supabase
-              .from("sets")
-              .update({ actual_rpe: calculatedRPE })
-              .eq("id", setId);
           }
         }
       }
@@ -476,35 +538,16 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
         );
         if (calculatedWeight !== null) {
           updatedSet.prescribed_weight = calculatedWeight;
-          await supabase
-            .from("sets")
-            .update({ prescribed_weight: calculatedWeight })
-            .eq("id", setId);
         }
         
         // Le RPE réel reste synchronisé si non modifié manuellement
         if (currentSet.actual_rpe === null || currentSet.actual_rpe === currentSet.prescribed_rpe) {
           updatedSet.actual_rpe = updatedSet.prescribed_rpe;
-          await supabase
-            .from("sets")
-            .update({ actual_rpe: updatedSet.prescribed_rpe })
-            .eq("id", setId);
         }
       }
     }
 
-    // Mettre à jour le champ principal
-    const { error } = await supabase
-      .from("sets")
-      .update({ [field]: value })
-      .eq("id", setId);
-
-    if (error) {
-      console.error("Erreur lors de la mise à jour:", error);
-      return;
-    }
-
-    // Mettre à jour l'état local avec toutes les modifications
+    // MISE À JOUR IMMÉDIATE DE L'ÉTAT LOCAL avec toutes les valeurs calculées
     setWeek({
       ...week,
       sessions: week.sessions.map(s =>
@@ -518,28 +561,97 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
           : s
       ),
     });
+
+    // Puis synchroniser TOUTES les modifications avec la DB en arrière-plan
+    const updateData: any = { [field]: value };
+    
+    if (isForceBlock) {
+      if (field === "prescribed_rpe" && updatedSet.prescribed_weight !== currentSet.prescribed_weight) {
+        updateData.prescribed_weight = updatedSet.prescribed_weight;
+      }
+      if ((field === "prescribed_rpe" || field === "prescribed_weight" || field === "prescribed_reps") && 
+          updatedSet.actual_rpe !== currentSet.actual_rpe) {
+        updateData.actual_rpe = updatedSet.actual_rpe;
+      }
+      if (field === "prescribed_weight" && updatedSet.prescribed_rpe !== currentSet.prescribed_rpe) {
+        updateData.prescribed_rpe = updatedSet.prescribed_rpe;
+      }
+      if (field === "prescribed_reps" && updatedSet.prescribed_weight !== currentSet.prescribed_weight) {
+        updateData.prescribed_weight = updatedSet.prescribed_weight;
+      }
+    }
+
+    const { error } = await supabase
+      .from("sets")
+      .update(updateData)
+      .eq("id", setId);
+
+    if (error) {
+      console.error("Erreur lors de la mise à jour:", error);
+      // En cas d'erreur, recharger pour revenir à l'état cohérent
+      return;
+    }
   };
 
   const handleDeleteSet = async (sessionId: string, setId: string) => {
-    if (!confirm("Êtes-vous sûr de vouloir supprimer cet exercice ?")) return;
+    const session = week.sessions.find(s => s.id === sessionId);
+    if (!session) return;
+
+    const setToDelete = session.sets.find(s => s.id === setId);
+    if (!setToDelete) return;
+
+    // Compter combien de séries appartiennent à cet exercice
+    const exerciseSets = session.sets.filter(s => s.exercise_name === setToDelete.exercise_name);
+    
+    const confirmMessage = exerciseSets.length === 1
+      ? "Cette série est la dernière de cet exercice. Supprimer l'exercice complet ?"
+      : "Êtes-vous sûr de vouloir supprimer cette série ?";
+
+    if (!confirm(confirmMessage)) return;
 
     const supabase = createClient();
-    const { error } = await supabase.from("sets").delete().eq("id", setId);
 
-    if (error) {
-      console.error("Erreur lors de la suppression:", error);
-      alert("Erreur lors de la suppression");
-      return;
+    // Si c'est la dernière série de l'exercice, supprimer toutes les séries de cet exercice
+    if (exerciseSets.length === 1) {
+      const { error } = await supabase
+        .from("sets")
+        .delete()
+        .eq("session_id", sessionId)
+        .eq("exercise_name", setToDelete.exercise_name);
+
+      if (error) {
+        console.error("Erreur lors de la suppression:", error);
+        alert("Erreur lors de la suppression");
+        return;
+      }
+
+      setWeek({
+        ...week,
+        sessions: week.sessions.map(s =>
+          s.id === sessionId
+            ? { ...s, sets: s.sets.filter(set => set.exercise_name !== setToDelete.exercise_name) }
+            : s
+        ),
+      });
+    } else {
+      // Sinon, supprimer uniquement cette série
+      const { error } = await supabase.from("sets").delete().eq("id", setId);
+
+      if (error) {
+        console.error("Erreur lors de la suppression:", error);
+        alert("Erreur lors de la suppression");
+        return;
+      }
+
+      setWeek({
+        ...week,
+        sessions: week.sessions.map(s =>
+          s.id === sessionId
+            ? { ...s, sets: s.sets.filter(set => set.id !== setId) }
+            : s
+        ),
+      });
     }
-
-    setWeek({
-      ...week,
-      sessions: week.sessions.map(s =>
-        s.id === sessionId
-          ? { ...s, sets: s.sets.filter(set => set.id !== setId) }
-          : s
-      ),
-    });
   };
 
   const handleUpdateWeekInfo = async () => {
@@ -678,7 +790,58 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                   <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 text-sm font-semibold">
                     {session.session_number}
                   </div>
-                  <span className="text-xl">{session.name}</span>
+                  {editingSessionId === session.id ? (
+                    <div className="flex items-center gap-2">
+                      <Input
+                        value={editingSessionName}
+                        onChange={(e) => setEditingSessionName(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === "Enter") {
+                            handleUpdateSessionName(session.id!, editingSessionName);
+                          } else if (e.key === "Escape") {
+                            setEditingSessionId(null);
+                            setEditingSessionName("");
+                          }
+                        }}
+                        className="text-xl font-semibold h-9"
+                        autoFocus
+                      />
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleUpdateSessionName(session.id!, editingSessionName)}
+                        className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                      >
+                        <Check className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditingSessionId(null);
+                          setEditingSessionName("");
+                        }}
+                        className="h-8 w-8 p-0 text-gray-600 hover:text-gray-700 hover:bg-gray-50"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span className="text-xl">{session.name}</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setEditingSessionId(session.id!);
+                          setEditingSessionName(session.name);
+                        }}
+                        className="h-8 w-8 p-0 text-gray-400 hover:text-gray-600 hover:bg-gray-100"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
                 </CardTitle>
                 <div className="flex items-center gap-2">
                   <Button
@@ -703,15 +866,18 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
             </CardHeader>
             <CardContent className="pt-6">
               {session.sets.length === 0 ? (
-                <div className="text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed">
+                <button
+                  onClick={() => handleAddExercise(session.id!)}
+                  className="w-full text-center py-12 bg-gray-50 rounded-lg border-2 border-dashed hover:border-solid hover:bg-green-50 hover:border-green-300 transition-all cursor-pointer"
+                >
                   <div className="mx-auto w-12 h-12 rounded-full bg-gray-100 flex items-center justify-center mb-3">
                     <Plus className="h-6 w-6 text-gray-400" />
                   </div>
                   <p className="text-gray-500 font-medium mb-1">Aucun exercice</p>
                   <p className="text-sm text-gray-400">
-                    Cliquez sur &quot;Ajouter un exercice&quot; pour commencer
+                    Cliquez pour ajouter le premier exercice
                   </p>
-                </div>
+                </button>
               ) : (
                 <div className="space-y-6">
                   {session.sets
@@ -753,6 +919,12 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                         }
                       }
 
+                      // Calculer le numéro de série relatif à l'exercice (1, 2, 3... pour chaque exercice)
+                      const exerciseSetNumber = arr
+                        .filter(s => s.exercise_name === set.exercise_name)
+                        .sort((a, b) => a.set_number - b.set_number)
+                        .findIndex(s => s.id === set.id) + 1;
+
                       return (
                         <div key={`group-${groupIndex}`} className="pt-4 first:pt-0">
                           {/* Header du groupe */}
@@ -772,54 +944,36 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                                 }
                                 className="font-semibold text-lg border-0 px-0 focus-visible:ring-0 focus-visible:ring-offset-0 flex-1 mr-2"
                               />
-                            )}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => {
-                                // Pour Superset/Triset, supprimer tous les sets du groupe
-                                if (isSupersetOrTriset) {
-                                  sets.forEach((s: any) => {
-                                    if (s.id) handleDeleteSet(session.id!, s.id);
-                                  });
-                                } else {
-                                  handleDeleteSet(session.id!, firstSet.id!);
-                                }
-                              }}
-                              className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </div>
-
-                          {/* Ligne d'entête pour les colonnes */}
-                          {isSupersetOrTriset && (
-                            <div className="grid grid-cols-12 gap-3 items-center pl-6 py-2 -ml-2 pl-8 text-xs text-gray-500 font-medium">
-                              <div className="col-span-2">Exercice</div>
-                              <div className="col-span-1">Série</div>
-                              <div className="col-span-2">Reps</div>
-                              <div className="col-span-2">Poids (kg)</div>
-                              <div className="col-span-3">Technique d'intensification</div>
-                              <div className="col-span-2">Notes</div>
                             </div>
                           )}
+                          <div className="grid gap-3 items-end pl-6 py-2 hover:bg-gray-50 rounded-md -ml-2 pl-8" style={{ gridTemplateColumns: isGeneralBlock ? "auto 1fr 1fr 2fr auto" : "auto 1fr 1fr 1fr 1fr 1fr auto" }}>
+                            <div className="text-sm font-medium text-gray-600 pb-2.5">
+                              Série {exerciseSetNumber}
+                            </div>
+                            <div>
+                              <div className="space-y-1">
+                                <Label className="text-xs text-gray-500">Reps</Label>
+                                <Input
+                                  type="number"
+                                  placeholder="0"
+                                  value={set.prescribed_reps || ""}
+                                  onChange={(e) =>
+                                    handleUpdateSet(
+                                      session.id!,
+                                      set.id!,
+                                      "prescribed_reps",
+                                      e.target.value ? parseInt(e.target.value) : null
+                                    )
+                                  }
+                                  className="h-9"
+                                />
+                              </div>
+                            </div>
 
-                          {/* Exercices du groupe */}
-                          {sets.map((set: any) => (
-                            <div key={set.id} className="grid grid-cols-12 gap-3 items-center pl-6 py-2 hover:bg-gray-50 rounded-md -ml-2 pl-8">
-                              <div className="col-span-2">
-                                <div className="text-sm font-medium text-gray-600">
-                                  {isSupersetOrTriset ? set.exercise_name : `Série ${set.set_number}`}
-                                </div>
-                              </div>
-                              <div className="col-span-1">
-                                <div className="text-xs text-gray-500">
-                                  {isSupersetOrTriset ? `Série ${set.set_number}` : ""}
-                                </div>
-                              </div>
-                              <div className="col-span-2">
-                                <div className="space-y-1">
-                                  <Label className="text-xs text-gray-500">Reps</Label>
+                            <div>
+                              <div className="space-y-1">
+                                <Label className="text-xs text-gray-500">Poids (kg)</Label>
+                                <div className="relative">
                                   <Input
                                     type="number"
                                     placeholder="0"
@@ -1015,29 +1169,65 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                                     />
                                   </div>
                                 </div>
-                              )}
-                              
-                              {/* Notes - for Force blocks (unchanged behavior) */}
-                              {!isGeneralBlock && (
-                                <div className="col-span-2">
-                                  <div className="space-y-1">
-                                    <Label className="text-xs text-gray-500">Notes</Label>
-                                    <Input
-                                      placeholder="Notes..."
-                                      value={set.notes || ""}
-                                      onChange={(e: any) =>
-                                        handleUpdateSet(session.id!, set.id!, "notes", e.target.value)
-                                      }
-                                      className="h-9"
-                                    />
-                                  </div>
-                                </div>
-                              )}
+                              </>
+                            )}
+                            
+                            <div>
+                              <div className="space-y-1">
+                                <Label className="text-xs text-gray-500">Notes</Label>
+                                <Input
+                                  placeholder="Notes..."
+                                  value={set.notes || ""}
+                                  onChange={(e) =>
+                                    handleUpdateSet(session.id!, set.id!, "notes", e.target.value)
+                                  }
+                                  className="h-9"
+                                />
+                              </div>
                             </div>
-                          ))}
+                            
+                            {/* Bouton de suppression de la série */}
+                            <div>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => handleDeleteSet(session.id!, set.id!)}
+                                className="h-9 w-9 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </div>
+                          
+                          {/* Bouton pour ajouter une série après la dernière série de cet exercice */}
+                          {isLastSetOfExercise && (
+                            <div className="pl-8 mt-2">
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleAddSeries(session.id!, set.exercise_name)}
+                                className="h-8 text-xs border-dashed hover:border-solid hover:bg-blue-50 hover:text-blue-700 hover:border-blue-300"
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                Ajouter une série
+                              </Button>
+                            </div>
+                          )}
                         </div>
                       );
                     })}
+                  
+                  {/* Bouton pour ajouter un exercice en bas de la séance */}
+                  <div className="pt-6 mt-6 border-t">
+                    <Button
+                      variant="outline"
+                      onClick={() => handleAddExercise(session.id!)}
+                      className="w-full h-12 border-2 border-dashed hover:border-solid hover:bg-green-50 hover:text-green-700 hover:border-green-300 transition-all"
+                    >
+                      <Plus className="mr-2 h-4 w-4" />
+                      <span className="font-medium">Ajouter un exercice</span>
+                    </Button>
+                  </div>
                 </div>
               )}
             </CardContent>

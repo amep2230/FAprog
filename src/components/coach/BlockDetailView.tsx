@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Edit, Plus, Calendar, FileText, Copy, Trash2, TrendingUp } from "lucide-react";
+import { ArrowLeft, Edit, Plus, Calendar, FileText, Copy, Trash2, TrendingUp, Eye } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -19,7 +19,7 @@ interface Week {
   week_number: number;
   name: string;
   notes: string | null;
-  sessions: any[];
+  sessions?: any[]; // Optionnel car non chargé dans la liste
   created_at: string;
 }
 
@@ -45,6 +45,9 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isAddWeekDialogOpen, setIsAddWeekDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isViewWeekDialogOpen, setIsViewWeekDialogOpen] = useState(false);
+  const [selectedWeekForView, setSelectedWeekForView] = useState<Week | null>(null);
+  const [viewWeekData, setViewWeekData] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isAutoCreating, setIsAutoCreating] = useState(false);
   const [createMode, setCreateMode] = useState<"scratch" | "duplicate">("scratch");
@@ -66,6 +69,35 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
 
   // Trier les semaines par numéro croissant (Semaine 1 en premier)
   const sortedWeeks = [...(block.weeks || [])].sort((a, b) => a.week_number - b.week_number);
+
+  const handleViewWeek = async (week: Week) => {
+    setSelectedWeekForView(week);
+    setIsViewWeekDialogOpen(true);
+    
+    // Charger les données complètes de la semaine
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("training_weeks")
+      .select(`
+        *,
+        sessions (
+          *,
+          sets (
+            *
+          )
+        )
+      `)
+      .eq("id", week.id)
+      .single();
+
+    if (error) {
+      console.error("Erreur lors du chargement de la semaine:", error);
+      alert("Erreur lors du chargement des données");
+      return;
+    }
+
+    setViewWeekData(data);
+  };
 
   const handleAutoCreateNextWeek = async () => {
     setIsAutoCreating(true);
@@ -435,29 +467,43 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
                       }}
                     >
                       <h3 className="font-semibold text-lg">
-                        Semaine {week.week_number} - {week.name}
+                        {week.name}
                       </h3>
                       <p className="text-sm text-gray-500">
                         {week.sessions?.length || 0} séance{(week.sessions?.length || 0) > 1 ? "s" : ""}
                       </p>
-                      {week.notes && (
+                      {week.notes && !week.notes.includes("Créée automatiquement") && (
                         <p className="text-sm text-gray-600 mt-1 line-clamp-1">
                           📝 {week.notes}
                         </p>
                       )}
                     </div>
-                    <Button 
-                      variant="outline"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const url = `/dashboard/coach/athletes/${athleteId}/blocks/${block.id}/weeks/${week.id}`;
-                        console.log("Button clicked, navigating to:", url);
-                        router.push(url);
-                      }}
-                    >
-                      Modifier
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        variant="outline"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          handleViewWeek(week);
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Voir
+                      </Button>
+                      <Button 
+                        variant="outline"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const url = `/dashboard/coach/athletes/${athleteId}/blocks/${block.id}/weeks/${week.id}`;
+                          console.log("Button clicked, navigating to:", url);
+                          router.push(url);
+                        }}
+                      >
+                        <Edit className="h-4 w-4 mr-2" />
+                        Modifier
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
@@ -699,6 +745,153 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
                 disabled={isLoading}
               >
                 {isLoading ? "Suppression..." : "Supprimer définitivement"}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Dialog - Voir la semaine (lecture seule) */}
+        <Dialog open={isViewWeekDialogOpen} onOpenChange={setIsViewWeekDialogOpen}>
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>
+                {selectedWeekForView && `Semaine ${selectedWeekForView.week_number} - ${selectedWeekForView.name}`}
+              </DialogTitle>
+              <DialogDescription>
+                Vue en lecture seule
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="space-y-4 py-4">
+              {!viewWeekData ? (
+                <div className="flex items-center justify-center py-8">
+                  <p className="text-gray-500">Chargement...</p>
+                </div>
+              ) : viewWeekData.sessions.length === 0 ? (
+                <div className="text-center py-8 bg-gray-50 rounded-lg">
+                  <p className="text-gray-500">Aucune séance dans cette semaine</p>
+                </div>
+              ) : (
+                viewWeekData.sessions
+                  .sort((a: any, b: any) => a.session_number - b.session_number)
+                  .map((session: any) => (
+                    <Card key={session.id} className="shadow-sm">
+                      <CardHeader className="bg-gray-50 border-b">
+                        <CardTitle className="flex items-center gap-3">
+                          <div className="flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-700 text-sm font-semibold">
+                            {session.session_number}
+                          </div>
+                          <span className="text-lg">{session.name}</span>
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="pt-6">
+                        {session.sets.length === 0 ? (
+                          <p className="text-gray-500 text-center py-4">Aucun exercice</p>
+                        ) : (
+                          <div className="space-y-4">
+                            {(() => {
+                              // Grouper les séries par exercice
+                              const exerciseGroups: any = {};
+                              session.sets
+                                .sort((a: any, b: any) => a.set_number - b.set_number)
+                                .forEach((set: any) => {
+                                  if (!exerciseGroups[set.exercise_name]) {
+                                    exerciseGroups[set.exercise_name] = [];
+                                  }
+                                  exerciseGroups[set.exercise_name].push(set);
+                                });
+
+                              return Object.entries(exerciseGroups).map(([exerciseName, sets]: [string, any]) => {
+                                // Regrouper les séries identiques
+                                const groupedSets: any[] = [];
+                                sets.forEach((set: any, index: number) => {
+                                  // Vérifier si cette série est identique à la précédente
+                                  const prevGroup = groupedSets[groupedSets.length - 1];
+                                  const isIdentical = prevGroup && 
+                                    prevGroup.sets[0].prescribed_reps === set.prescribed_reps &&
+                                    prevGroup.sets[0].prescribed_weight === set.prescribed_weight &&
+                                    prevGroup.sets[0].prescribed_rpe === set.prescribed_rpe &&
+                                    prevGroup.sets[0].actual_rpe === set.actual_rpe &&
+                                    prevGroup.sets[0].notes === set.notes;
+
+                                  if (isIdentical) {
+                                    // Ajouter à la groupe existante
+                                    prevGroup.sets.push(set);
+                                  } else {
+                                    // Créer un nouveau groupe
+                                    groupedSets.push({ sets: [set] });
+                                  }
+                                });
+
+                                return (
+                                  <div key={exerciseName}>
+                                    <h4 className="font-semibold text-base mb-2 pb-2 border-b">
+                                      {exerciseName}
+                                    </h4>
+                                    {groupedSets.map((group, groupIndex) => {
+                                      const set = group.sets[0]; // Utiliser la première série comme référence
+                                      const serieNumbers = group.sets.map((_: any, i: number) => 
+                                        sets.findIndex((s: any) => s.id === group.sets[i].id) + 1
+                                      );
+                                      const serieLabel = serieNumbers.length === 1 
+                                        ? `Série ${serieNumbers[0]}`
+                                        : `Série ${serieNumbers.join('/')}`;
+
+                                      return (
+                                        <div key={groupIndex} className="grid grid-cols-12 gap-2 text-sm pl-4 mb-2">
+                                          <div className="col-span-2 text-gray-600 font-medium">
+                                            {serieLabel}
+                                          </div>
+                                          <div className="col-span-2">
+                                            <span className="text-gray-500">Reps: </span>
+                                            <span className="font-medium">{set.prescribed_reps || "-"}</span>
+                                          </div>
+                                          <div className="col-span-2">
+                                            <span className="text-gray-500">Poids: </span>
+                                            <span className="font-medium">{set.prescribed_weight ? `${set.prescribed_weight} kg` : "-"}</span>
+                                          </div>
+                                          {set.prescribed_rpe !== null && (
+                                            <>
+                                              <div className="col-span-2">
+                                                <span className="text-gray-500">RPE: </span>
+                                                <span className="font-medium">{set.prescribed_rpe}</span>
+                                              </div>
+                                              <div className="col-span-2">
+                                                <span className="text-gray-500">RPE Réel: </span>
+                                                <span className="font-medium">{set.actual_rpe || "-"}</span>
+                                              </div>
+                                            </>
+                                          )}
+                                          {set.notes && (
+                                            <div className="col-span-full text-gray-600 text-xs italic">
+                                              📝 {set.notes}
+                                            </div>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                );
+                              });
+                            })()}
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))
+              )}
+            </div>
+            
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setIsViewWeekDialogOpen(false)}>
+                Fermer
+              </Button>
+              <Button onClick={() => {
+                setIsViewWeekDialogOpen(false);
+                router.push(`/dashboard/coach/athletes/${athleteId}/blocks/${block.id}/weeks/${selectedWeekForView?.id}`);
+              }}>
+                <Edit className="h-4 w-4 mr-2" />
+                Modifier
               </Button>
             </DialogFooter>
           </DialogContent>
