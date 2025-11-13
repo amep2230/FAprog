@@ -11,6 +11,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, Save, ArrowLeft, GripVertical, Pencil, Check, X } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { IntensificationTechniqueSelect } from "@/components/shared/IntensificationTechniqueSelect";
+import { ExerciseTypeSelect } from "@/components/shared/ExerciseTypeSelect";
 
 interface Set {
   id?: string;
@@ -22,6 +24,9 @@ interface Set {
   prescribed_rpe: number | null;
   actual_rpe: number | null;
   notes: string | null;
+  intensification_technique?: string | null;
+  drop_set_reps?: number | null;
+  drop_set_weight?: number | null;
 }
 
 interface Session {
@@ -70,8 +75,10 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
   const [newSessionName, setNewSessionName] = useState("");
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [selectedExerciseId, setSelectedExerciseId] = useState<string>("");
+  const [selectedExerciseIds, setSelectedExerciseIds] = useState<string[]>([]);
   const [exerciseSearchTerm, setExerciseSearchTerm] = useState("");
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string>("");
+  const [selectedExerciseTypeForDialog, setSelectedExerciseTypeForDialog] = useState<string>("normal");
   const [previousWeekData, setPreviousWeekData] = useState<Week | null>(null);
   const [personalRecords, setPersonalRecords] = useState<Map<string, number>>(new Map());
   const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
@@ -393,44 +400,72 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
   };
 
   const handleConfirmAddExercise = async () => {
-    if (!selectedSessionForExercise || !selectedExerciseId) return;
+    if (!selectedSessionForExercise) return;
+
+    // Déterminer les exercices à ajouter selon le type
+    let exercisesToAdd: string[] = [];
+    if (selectedExerciseTypeForDialog === "normal") {
+      if (!selectedExerciseId) return;
+      exercisesToAdd = [selectedExerciseId];
+    } else if (selectedExerciseTypeForDialog === "superset") {
+      if (selectedExerciseIds.length !== 2) {
+        alert("Veuillez sélectionner exactement 2 exercices pour un Superset");
+        return;
+      }
+      exercisesToAdd = selectedExerciseIds;
+    } else if (selectedExerciseTypeForDialog === "triset") {
+      if (selectedExerciseIds.length !== 3) {
+        alert("Veuillez sélectionner exactement 3 exercices pour un Triset");
+        return;
+      }
+      exercisesToAdd = selectedExerciseIds;
+    }
 
     const supabase = createClient();
     const session = week.sessions.find(s => s.id === selectedSessionForExercise);
     if (!session) return;
 
-    const selectedExercise = exercises.find(e => e.id === selectedExerciseId);
-    if (!selectedExercise) return;
+    const baseSetNumber = Math.max(...session.sets.map(s => s.set_number), 0) + 1;
+    const newSets: any[] = [];
 
-    const newSetNumber = Math.max(...session.sets.map(s => s.set_number), 0) + 1;
+    // Créer un set pour chaque exercice
+    for (let i = 0; i < exercisesToAdd.length; i++) {
+      const exerciseId = exercisesToAdd[i];
+      const selectedExercise = exercises.find(e => e.id === exerciseId);
+      if (!selectedExercise) continue;
 
-    const { data: newSet, error } = await supabase
-      .from("sets")
-      .insert({
-        session_id: selectedSessionForExercise,
-        exercise_name: selectedExercise.name,
-        exercise_type: "main",
-        set_number: newSetNumber,
-        prescribed_reps: null,
-        prescribed_weight: null,
-        prescribed_rpe: null,
-        actual_rpe: null,  // Sera mis à jour quand prescribed_rpe sera rempli
-        notes: null,
-      })
-      .select()
-      .single();
+      const { data: newSet, error } = await supabase
+        .from("sets")
+        .insert({
+          session_id: selectedSessionForExercise,
+          exercise_name: selectedExercise.name,
+          exercise_type: selectedExerciseTypeForDialog,
+          set_number: baseSetNumber + i,
+          prescribed_reps: null,
+          prescribed_weight: null,
+          prescribed_rpe: null,
+          actual_rpe: null,
+          notes: null,
+        })
+        .select()
+        .single();
 
-    if (error) {
-      console.error("Erreur lors de l'ajout de l'exercice:", error);
-      alert("Erreur lors de l'ajout de l'exercice");
-      return;
+      if (error) {
+        console.error("Erreur lors de l'ajout de l'exercice:", error);
+        alert("Erreur lors de l'ajout de l'exercice");
+        return;
+      }
+
+      if (newSet) {
+        newSets.push(newSet);
+      }
     }
 
     setWeek({
       ...week,
       sessions: week.sessions.map(s =>
         s.id === selectedSessionForExercise
-          ? { ...s, sets: [...s.sets, newSet] }
+          ? { ...s, sets: [...s.sets, ...newSets] }
           : s
       ),
     });
@@ -438,7 +473,10 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
     setIsAddExerciseDialogOpen(false);
     setSelectedSessionForExercise(null);
     setSelectedExerciseId("");
+    setSelectedExerciseIds([]);
+    setSelectedExerciseTypeForDialog("normal");
     setExerciseSearchTerm("");
+    setSelectedMuscleGroup("");
   };
 
   const handleUpdateSet = async (sessionId: string, setId: string, field: keyof Set, value: any) => {
@@ -844,12 +882,42 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                 <div className="space-y-6">
                   {session.sets
                     .sort((a, b) => a.set_number - b.set_number)
-                    .map((set, index, arr) => {
-                      // Grouper les séries par exercice
-                      const isFirstSetOfExercise =
-                        index === 0 || arr[index - 1].exercise_name !== set.exercise_name;
-                      const isLastSetOfExercise =
-                        index === arr.length - 1 || arr[index + 1].exercise_name !== set.exercise_name;
+                    .reduce((groups: any[], set, index, arr) => {
+                      // Pour Superset/Triset, regrouper par set_number + exercise_type
+                      // Pour les autres, regrouper par exercise_name
+                      const isSupersetOrTriset = set.exercise_type === "superset" || set.exercise_type === "triset";
+                      
+                      const isFirstSetOfGroup = index === 0 || 
+                        (isSupersetOrTriset 
+                          ? (arr[index - 1].set_number !== set.set_number || arr[index - 1].exercise_type !== set.exercise_type)
+                          : arr[index - 1].exercise_name !== set.exercise_name);
+
+                      if (isFirstSetOfGroup) {
+                        // Créer un nouveau groupe
+                        const groupSets = isSupersetOrTriset
+                          ? arr.filter(s => s.set_number === set.set_number && s.exercise_type === set.exercise_type)
+                          : [set];
+                        
+                        groups.push({
+                          firstSet: set,
+                          sets: groupSets,
+                          isSupersetOrTriset,
+                        });
+                      }
+                      
+                      return groups;
+                    }, [])
+                    .map((group, groupIndex) => {
+                      const { firstSet, sets, isSupersetOrTriset } = group;
+                      
+                      let groupLabel = "";
+                      if (isSupersetOrTriset) {
+                        if (firstSet.exercise_type === "superset") {
+                          groupLabel = "Superset";
+                        } else if (firstSet.exercise_type === "triset") {
+                          groupLabel = "Triset";
+                        }
+                      }
 
                       // Calculer le numéro de série relatif à l'exercice (1, 2, 3... pour chaque exercice)
                       const exerciseSetNumber = arr
@@ -858,18 +926,21 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                         .findIndex(s => s.id === set.id) + 1;
 
                       return (
-                        <div
-                          key={set.id}
-                          className={`${
-                            isFirstSetOfExercise ? "pt-4 first:pt-0" : ""
-                          }`}
-                        >
-                          {isFirstSetOfExercise && (
-                            <div className="flex items-center justify-between mb-3 pb-3 border-b">
+                        <div key={`group-${groupIndex}`} className="pt-4 first:pt-0">
+                          {/* Header du groupe */}
+                          <div className="flex items-center justify-between mb-3 pb-3 border-b">
+                            {isSupersetOrTriset ? (
+                              <div className="flex items-center gap-2 flex-1">
+                                <span className="font-semibold text-lg">{groupLabel}</span>
+                                <span className="text-sm text-gray-500">
+                                  ({firstSet.exercise_type === "superset" ? "2" : "3"} exercices)
+                                </span>
+                              </div>
+                            ) : (
                               <Input
-                                value={set.exercise_name}
+                                value={firstSet.exercise_name}
                                 onChange={(e) =>
-                                  handleUpdateSet(session.id!, set.id!, "exercise_name", e.target.value)
+                                  handleUpdateSet(session.id!, firstSet.id!, "exercise_name", e.target.value)
                                 }
                                 className="font-semibold text-lg border-0 px-0 focus-visible:ring-0 focus-visible:ring-offset-0 flex-1 mr-2"
                               />
@@ -906,94 +977,195 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                                   <Input
                                     type="number"
                                     placeholder="0"
-                                    step="2.5"
-                                    value={set.prescribed_weight || ""}
-                                    onChange={(e) =>
+                                    value={set.prescribed_reps || ""}
+                                    onChange={(e: any) =>
                                       handleUpdateSet(
                                         session.id!,
                                         set.id!,
-                                        "prescribed_weight",
-                                        e.target.value ? parseFloat(e.target.value) : null
+                                        "prescribed_reps",
+                                        e.target.value ? parseInt(e.target.value) : null
                                       )
                                     }
                                     className="h-9"
                                   />
-                                  {(() => {
-                                    const prevData = getPreviousWeekData(session.session_number, set.exercise_name, set.set_number);
-                                    if (!prevData?.prescribed_weight) return null;
-                                    
-                                    const isSameAsPrev = set.prescribed_weight === prevData.prescribed_weight;
-                                    return (
-                                      <span className={`absolute -bottom-5 left-0 text-xs whitespace-nowrap ${
-                                        isSameAsPrev ? 'text-green-600' : 'text-blue-600'
-                                      }`}>
-                                        {isSameAsPrev ? '✓ ' : ''}S{week.week_number - 1}: {prevData.prescribed_weight}kg
-                                      </span>
-                                    );
-                                  })()}
                                 </div>
                               </div>
-                            </div>
 
-                            {!isGeneralBlock && (
-                              <>
-                                <div>
-                                  <div className="space-y-1">
-                                    <Label className="text-xs text-gray-500">RPE Prescrit</Label>
-                                    <div className="relative">
+                              <div className="col-span-2">
+                                <div className="space-y-1">
+                                  <Label className="text-xs text-gray-500">Poids (kg)</Label>
+                                  <div className="relative">
+                                    <Input
+                                      type="number"
+                                      placeholder="0"
+                                      step="2.5"
+                                      value={set.prescribed_weight || ""}
+                                      onChange={(e: any) =>
+                                        handleUpdateSet(
+                                          session.id!,
+                                          set.id!,
+                                          "prescribed_weight",
+                                          e.target.value ? parseFloat(e.target.value) : null
+                                        )
+                                      }
+                                      className="h-9"
+                                    />
+                                    {(() => {
+                                      const prevData = getPreviousWeekData(session.session_number, set.exercise_name, set.set_number);
+                                      if (!prevData?.prescribed_weight) return null;
+                                      
+                                      const isSameAsPrev = set.prescribed_weight === prevData.prescribed_weight;
+                                      return (
+                                        <span className={`absolute -bottom-5 left-0 text-xs whitespace-nowrap ${
+                                          isSameAsPrev ? 'text-green-600' : 'text-blue-600'
+                                        }`}>
+                                          {isSameAsPrev ? '✓ ' : ''}S{week.week_number - 1}: {prevData.prescribed_weight}kg
+                                        </span>
+                                      );
+                                    })()}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {!isGeneralBlock && (
+                                <>
+                                  <div className="col-span-2">
+                                    <div className="space-y-1">
+                                      <Label className="text-xs text-gray-500">RPE Prescrit</Label>
+                                      <div className="relative">
+                                        <Input
+                                          type="number"
+                                          placeholder="0"
+                                          min="0"
+                                          max="12.5"
+                                          step="0.5"
+                                          value={set.prescribed_rpe || ""}
+                                          onChange={(e: any) =>
+                                            handleUpdateSet(
+                                              session.id!,
+                                              set.id!,
+                                              "prescribed_rpe",
+                                              e.target.value ? parseFloat(e.target.value) : null
+                                            )
+                                          }
+                                          className="h-9"
+                                        />
+                                        {(() => {
+                                          const prevData = getPreviousWeekData(session.session_number, set.exercise_name, set.set_number);
+                                          if (!prevData?.prescribed_rpe) return null;
+                                          
+                                          const isSameAsPrev = set.prescribed_rpe === prevData.prescribed_rpe;
+                                          return (
+                                            <span className={`absolute -bottom-5 left-0 text-xs whitespace-nowrap ${
+                                              isSameAsPrev ? 'text-green-600' : 'text-blue-600'
+                                            }`}>
+                                              {isSameAsPrev ? '✓ ' : ''}S{week.week_number - 1}: {prevData.prescribed_rpe}
+                                            </span>
+                                          );
+                                        })()}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="col-span-2">
+                                    <div className="space-y-1">
+                                      <Label className="text-xs text-gray-500">RPE Réel</Label>
                                       <Input
                                         type="number"
                                         placeholder="0"
                                         min="0"
                                         max="12.5"
                                         step="0.5"
-                                        value={set.prescribed_rpe || ""}
-                                        onChange={(e) =>
+                                        value={set.actual_rpe || ""}
+                                        onChange={(e: any) =>
                                           handleUpdateSet(
                                             session.id!,
                                             set.id!,
-                                            "prescribed_rpe",
+                                            "actual_rpe",
                                             e.target.value ? parseFloat(e.target.value) : null
                                           )
                                         }
-                                        className="h-9"
+                                        className="h-9 bg-amber-50"
                                       />
-                                      {(() => {
-                                        const prevData = getPreviousWeekData(session.session_number, set.exercise_name, set.set_number);
-                                        if (!prevData?.prescribed_rpe) return null;
-                                        
-                                        const isSameAsPrev = set.prescribed_rpe === prevData.prescribed_rpe;
-                                        return (
-                                          <span className={`absolute -bottom-5 left-0 text-xs whitespace-nowrap ${
-                                            isSameAsPrev ? 'text-green-600' : 'text-blue-600'
-                                          }`}>
-                                            {isSameAsPrev ? '✓ ' : ''}S{week.week_number - 1}: {prevData.prescribed_rpe}
-                                          </span>
-                                        );
-                                      })()}
                                     </div>
                                   </div>
+                                </>
+                              )}
+                              {isGeneralBlock && (
+                                <div className="col-span-3">
+                                  <IntensificationTechniqueSelect
+                                    value={set.intensification_technique}
+                                    onChange={(value: string) =>
+                                      handleUpdateSet(
+                                        session.id!,
+                                        set.id!,
+                                        "intensification_technique",
+                                        value || null
+                                      )
+                                    }
+                                  />
                                 </div>
-
-                                <div>
+                              )}
+                              
+                              {/* Notes */}
+                              {isGeneralBlock && (
+                                <div className="col-span-2">
                                   <div className="space-y-1">
-                                    <Label className="text-xs text-gray-500">RPE Réel</Label>
+                                    <Label className="text-xs text-gray-500">Notes</Label>
+                                    <Input
+                                      placeholder="Notes..."
+                                      value={set.notes || ""}
+                                      onChange={(e: any) =>
+                                        handleUpdateSet(session.id!, set.id!, "notes", e.target.value)
+                                      }
+                                      className="h-9"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Drop set suite reps field */}
+                              {set.intensification_technique === "drop-set" && (
+                                <div className="col-span-2">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-gray-500">Suite - Reps</Label>
                                     <Input
                                       type="number"
-                                      placeholder="0"
-                                      min="0"
-                                      max="12.5"
-                                      step="0.5"
-                                      value={set.actual_rpe || ""}
-                                      onChange={(e) =>
+                                      placeholder="Reps"
+                                      value={set.drop_set_reps || ""}
+                                      onChange={(e: any) =>
                                         handleUpdateSet(
                                           session.id!,
                                           set.id!,
-                                          "actual_rpe",
+                                          "drop_set_reps",
+                                          e.target.value ? parseInt(e.target.value) : null
+                                        )
+                                      }
+                                      className="h-9"
+                                    />
+                                  </div>
+                                </div>
+                              )}
+                              
+                              {/* Drop set suite weight field */}
+                              {set.intensification_technique === "drop-set" && (
+                                <div className="col-span-2">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-gray-500">Suite - Poids (kg)</Label>
+                                    <Input
+                                      type="number"
+                                      step="0.5"
+                                      placeholder="Poids"
+                                      value={set.drop_set_weight || ""}
+                                      onChange={(e: any) =>
+                                        handleUpdateSet(
+                                          session.id!,
+                                          set.id!,
+                                          "drop_set_weight",
                                           e.target.value ? parseFloat(e.target.value) : null
                                         )
                                       }
-                                      className="h-9 bg-amber-50"
+                                      className="h-9"
                                     />
                                   </div>
                                 </div>
@@ -1111,6 +1283,17 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
+            {/* Exercise type selector - only for General blocks */}
+            {isGeneralBlock && (
+              <div className="space-y-2">
+                <Label>Type d'exercice</Label>
+                <ExerciseTypeSelect
+                  value={selectedExerciseTypeForDialog}
+                  onChange={(value) => setSelectedExerciseTypeForDialog(value)}
+                />
+              </div>
+            )}
+
             {/* Barre de recherche */}
             <div className="space-y-2">
               <Label htmlFor="exercise-search">Rechercher</Label>
@@ -1148,12 +1331,19 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
             
             {/* Liste des exercices filtrés */}
             <div className="space-y-2">
-              <Label>Exercices ({exercises.filter(ex => 
-                (selectedMuscleGroup === "" || ex.muscle_group === selectedMuscleGroup) &&
-                (exerciseSearchTerm === "" || 
-                 ex.name.toLowerCase().includes(exerciseSearchTerm.toLowerCase()) ||
-                 ex.muscle_group.toLowerCase().includes(exerciseSearchTerm.toLowerCase()))
-              ).length} résultats)</Label>
+              <div className="flex items-center justify-between">
+                <Label>Exercices ({exercises.filter(ex => 
+                  (selectedMuscleGroup === "" || ex.muscle_group === selectedMuscleGroup) &&
+                  (exerciseSearchTerm === "" || 
+                   ex.name.toLowerCase().includes(exerciseSearchTerm.toLowerCase()) ||
+                   ex.muscle_group.toLowerCase().includes(exerciseSearchTerm.toLowerCase()))
+                ).length} résultats)</Label>
+                {(selectedExerciseTypeForDialog === "superset" || selectedExerciseTypeForDialog === "triset") && (
+                  <span className="text-sm text-gray-600">
+                    {selectedExerciseIds.length} / {selectedExerciseTypeForDialog === "superset" ? "2" : "3"} sélectionné(s)
+                  </span>
+                )}
+              </div>
               <div className="border rounded-md max-h-[400px] overflow-y-auto">
                 {exercises
                   .filter(ex => 
@@ -1162,19 +1352,42 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                      ex.name.toLowerCase().includes(exerciseSearchTerm.toLowerCase()) ||
                      ex.muscle_group.toLowerCase().includes(exerciseSearchTerm.toLowerCase()))
                   )
-                  .map((exercise) => (
-                    <button
-                      key={exercise.id}
-                      type="button"
-                      onClick={() => setSelectedExerciseId(exercise.id)}
-                      className={`w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors border-b last:border-b-0 ${
-                        selectedExerciseId === exercise.id ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
-                      }`}
-                    >
-                      <div className="font-medium">{exercise.name}</div>
-                      <div className="text-sm text-gray-500">{exercise.muscle_group}</div>
-                    </button>
-                  ))}
+                  .map((exercise) => {
+                    const isSelected = selectedExerciseTypeForDialog === "normal" 
+                      ? selectedExerciseId === exercise.id
+                      : selectedExerciseIds.includes(exercise.id);
+
+                    return (
+                      <button
+                        key={exercise.id}
+                        type="button"
+                        onClick={() => {
+                          if (selectedExerciseTypeForDialog === "normal") {
+                            setSelectedExerciseId(exercise.id);
+                            setSelectedExerciseIds([]);
+                          } else if (selectedExerciseTypeForDialog === "superset") {
+                            if (selectedExerciseIds.includes(exercise.id)) {
+                              setSelectedExerciseIds(selectedExerciseIds.filter(id => id !== exercise.id));
+                            } else if (selectedExerciseIds.length < 2) {
+                              setSelectedExerciseIds([...selectedExerciseIds, exercise.id]);
+                            }
+                          } else if (selectedExerciseTypeForDialog === "triset") {
+                            if (selectedExerciseIds.includes(exercise.id)) {
+                              setSelectedExerciseIds(selectedExerciseIds.filter(id => id !== exercise.id));
+                            } else if (selectedExerciseIds.length < 3) {
+                              setSelectedExerciseIds([...selectedExerciseIds, exercise.id]);
+                            }
+                          }
+                        }}
+                        className={`w-full text-left px-4 py-3 hover:bg-gray-100 transition-colors border-b last:border-b-0 ${
+                          isSelected ? 'bg-blue-50 border-l-4 border-l-blue-500' : ''
+                        }`}
+                      >
+                        <div className="font-medium">{exercise.name}</div>
+                        <div className="text-sm text-gray-500">{exercise.muscle_group}</div>
+                      </button>
+                    );
+                  })}
                 {exercises.filter(ex => 
                   (selectedMuscleGroup === "" || ex.muscle_group === selectedMuscleGroup) &&
                   (exerciseSearchTerm === "" || 
@@ -1194,13 +1407,22 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
               onClick={() => {
                 setIsAddExerciseDialogOpen(false);
                 setSelectedExerciseId("");
+                setSelectedExerciseIds([]);
                 setExerciseSearchTerm("");
                 setSelectedMuscleGroup("");
+                setSelectedExerciseTypeForDialog("normal");
               }}
             >
               Annuler
             </Button>
-            <Button onClick={handleConfirmAddExercise} disabled={!selectedExerciseId}>
+            <Button 
+              onClick={handleConfirmAddExercise} 
+              disabled={
+                selectedExerciseTypeForDialog === "normal" 
+                  ? !selectedExerciseId 
+                  : selectedExerciseIds.length === 0
+              }
+            >
               Ajouter
             </Button>
           </DialogFooter>
