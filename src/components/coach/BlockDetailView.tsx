@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Edit, Plus, Calendar, FileText, Copy, Trash2 } from "lucide-react";
+import { ArrowLeft, Edit, Plus, Calendar, FileText, Copy, Trash2, TrendingUp } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -45,6 +45,7 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
   const [isAddWeekDialogOpen, setIsAddWeekDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAutoCreating, setIsAutoCreating] = useState(false);
   const [createMode, setCreateMode] = useState<"scratch" | "duplicate">("scratch");
   const [selectedPreviousWeek, setSelectedPreviousWeek] = useState<string>("");
   
@@ -64,6 +65,35 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
 
   // Trier les semaines par numéro croissant (Semaine 1 en premier)
   const sortedWeeks = [...(block.weeks || [])].sort((a, b) => a.week_number - b.week_number);
+
+  const handleAutoCreateNextWeek = async () => {
+    setIsAutoCreating(true);
+
+    try {
+      const response = await fetch("/api/blocks/create-next-week", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          blockId: block.id,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || "Erreur lors de la création automatique");
+      }
+
+      // Rediriger vers la page d'édition de la nouvelle semaine
+      router.push(`/dashboard/coach/athletes/${athleteId}/blocks/${block.id}/weeks/${data.weekId}`);
+    } catch (error: any) {
+      console.error("Erreur création auto:", error);
+      alert(`❌ Erreur: ${error.message}`);
+      setIsAutoCreating(false);
+    }
+  };
 
   const handleUpdateBlock = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -309,6 +339,15 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
             <Button onClick={() => setIsAddWeekDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Ajouter une semaine
+            </Button>
+            <Button 
+              onClick={handleAutoCreateNextWeek}
+              disabled={isAutoCreating || sortedWeeks.length === 0}
+              variant="secondary"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+            >
+              <TrendingUp className="mr-2 h-4 w-4" />
+              {isAutoCreating ? "Création..." : "Créer semaine suivante (auto RPE)"}
             </Button>
             <Button variant="destructive" onClick={() => setIsDeleteDialogOpen(true)}>
               <Trash2 className="mr-2 h-4 w-4" />

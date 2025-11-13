@@ -218,7 +218,7 @@ export default function SessionLogger({ session, athleteId, onClose }: SessionLo
                         <Label className="text-xs sm:text-sm">Poids (kg)</Label>
                         <Input
                           type="number"
-                          step="0.5"
+                          step="2.5"
                           value={setLogs[idx].actualWeight}
                           onChange={(e) =>
                             handleSetChange(idx, "actualWeight", e.target.value)

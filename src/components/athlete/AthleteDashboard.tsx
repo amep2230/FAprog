@@ -9,7 +9,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Dumbbell, LogOut, Calendar, TrendingUp, Trophy } from "lucide-react";
+import { Dumbbell, LogOut, Calendar, TrendingUp, Trophy, Award } from "lucide-react";
 import { signOut } from "@/app/login/actions";
 import Link from "next/link";
 import PRHistory from "@/components/shared/PRHistory";
@@ -60,6 +60,14 @@ export default function AthleteDashboard({
               </div>
             </div>
             <div className="flex items-center space-x-2 sm:space-x-4">
+              {/* Bouton Gérer les PR */}
+              <Link href="/dashboard/athlete/personal-records">
+                <Button variant="outline" size="sm">
+                  <Award className="h-4 w-4 sm:mr-2" />
+                  <span className="hidden sm:inline">Mes PR</span>
+                </Button>
+              </Link>
+              
               {/* Taux de complétion discret */}
               {currentProgram && (
                 <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-blue-50 rounded-full border border-blue-200">

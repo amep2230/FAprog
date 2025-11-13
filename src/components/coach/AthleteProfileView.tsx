@@ -3,7 +3,7 @@
 import { Profile } from "@/lib/types";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, User, Calendar, TrendingUp, Award, BarChart3, FolderKanban } from "lucide-react";
+import { ArrowLeft, User, Calendar, TrendingUp, Award, BarChart3, FolderKanban, Dumbbell } from "lucide-react";
 import Link from "next/link";
 import { useMemo } from "react";
 import WeeklyStatsTable from "./WeeklyStatsTable";
@@ -97,6 +97,12 @@ export default function AthleteProfileView({
               athleteId={athlete.id}
               exercises={exercises}
             />
+            <Link href={`/dashboard/coach/athletes/${athlete.id}/personal-records`}>
+              <Button variant="outline">
+                <Dumbbell className="mr-2 h-4 w-4" />
+                Gérer les PR
+              </Button>
+            </Link>
             <Link href={`/dashboard/coach/athletes/${athlete.id}/blocks`}>
               <Button>
                 <FolderKanban className="mr-2 h-4 w-4" />
