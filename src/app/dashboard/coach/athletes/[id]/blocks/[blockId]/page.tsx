@@ -32,20 +32,17 @@ export default async function BlockDetailPage({ params }: BlockDetailPageProps) 
     redirect("/dashboard/athlete");
   }
 
-  // Récupérer le bloc avec ses semaines
+  // Récupérer le bloc avec ses semaines (sans charger les sessions/sets pour la performance)
   const { data: block, error } = await supabase
     .from("training_blocks")
     .select(`
       *,
       weeks:training_weeks (
-        *,
-        sessions (
-          *,
-          sets (
-            *,
-            exercise:exercises (*)
-          )
-        )
+        id,
+        week_number,
+        name,
+        notes,
+        created_at
       )
     `)
     .eq("id", blockId)
@@ -55,6 +52,29 @@ export default async function BlockDetailPage({ params }: BlockDetailPageProps) 
 
   if (error || !block) {
     notFound();
+  }
+
+  // Compter le nombre de sessions pour chaque semaine
+  if (block.weeks && block.weeks.length > 0) {
+    const weekIds = block.weeks.map((w: any) => w.id);
+    
+    const { data: sessionCounts } = await supabase
+      .from("sessions")
+      .select("week_id")
+      .in("week_id", weekIds);
+
+    // Créer un map des counts
+    const countsMap = new Map<string, number>();
+    sessionCounts?.forEach((session: any) => {
+      const count = countsMap.get(session.week_id) || 0;
+      countsMap.set(session.week_id, count + 1);
+    });
+
+    // Ajouter le count à chaque semaine
+    block.weeks = block.weeks.map((week: any) => ({
+      ...week,
+      sessions: new Array(countsMap.get(week.id) || 0), // Créer un tableau vide de la bonne taille
+    }));
   }
 
   // Récupérer tous les exercices

@@ -70,7 +70,7 @@ BEGIN
     p_block_id,
     p_week_number,
     COALESCE(p_week_name, 'Semaine ' || p_week_number),
-    'Créée automatiquement à partir de la semaine 1 avec RPE incrémenté'
+    NULL
   )
   RETURNING id INTO v_new_week_id;
 
