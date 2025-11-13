@@ -31,6 +31,7 @@ interface BlockDetailViewProps {
     start_date: string | null;
     end_date: string | null;
     is_active: boolean;
+    block_type: "force" | "general";
     weeks: Week[];
   };
   athleteId: string;
@@ -340,15 +341,17 @@ export default function BlockDetailView({ block, athleteId, athleteName, coachId
               <Plus className="mr-2 h-4 w-4" />
               Ajouter une semaine
             </Button>
-            <Button 
-              onClick={handleAutoCreateNextWeek}
-              disabled={isAutoCreating || sortedWeeks.length === 0}
-              variant="secondary"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
-            >
-              <TrendingUp className="mr-2 h-4 w-4" />
-              {isAutoCreating ? "Création..." : "Créer semaine suivante (auto RPE)"}
-            </Button>
+            {block.block_type === "force" && (
+              <Button 
+                onClick={handleAutoCreateNextWeek}
+                disabled={isAutoCreating || sortedWeeks.length === 0}
+                variant="secondary"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <TrendingUp className="mr-2 h-4 w-4" />
+                {isAutoCreating ? "Création..." : "Créer semaine suivante (auto RPE)"}
+              </Button>
+            )}
             <Button variant="destructive" onClick={() => setIsDeleteDialogOpen(true)}>
               <Trash2 className="mr-2 h-4 w-4" />
               Supprimer le bloc
