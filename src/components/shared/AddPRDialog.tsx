@@ -147,7 +147,7 @@ export default function AddPRDialog({
             <Input
               id="weight"
               type="number"
-              step="0.5"
+              step="2.5"
               min="0"
               value={formData.weight}
               onChange={(e) =>

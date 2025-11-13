@@ -20,6 +20,7 @@ interface Set {
   prescribed_reps: number | null;
   prescribed_weight: number | null;
   prescribed_rpe: number | null;
+  actual_rpe: number | null;
   notes: string | null;
 }
 
@@ -72,6 +73,117 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
   const [exerciseSearchTerm, setExerciseSearchTerm] = useState("");
   const [selectedMuscleGroup, setSelectedMuscleGroup] = useState<string>("");
   const [previousWeekData, setPreviousWeekData] = useState<Week | null>(null);
+  const [personalRecords, setPersonalRecords] = useState<Map<string, number>>(new Map());
+
+  // Charger les PR de l'athlète
+  useEffect(() => {
+    const loadPersonalRecords = async () => {
+      if (!athleteId) return;
+
+      const supabase = createClient();
+      const { data, error } = await supabase
+        .from("personal_records")
+        .select(`
+          *,
+          exercise:exercises (
+            id,
+            name
+          )
+        `)
+        .eq("athlete_id", athleteId);
+
+      if (error) {
+        console.error("Erreur lors du chargement des PR:", error);
+        return;
+      }
+
+      // Créer une map: nom_exercice -> estimated_1rm
+      const prMap = new Map<string, number>();
+      data?.forEach(pr => {
+        if (pr.exercise?.name && pr.estimated_1rm) {
+          // Garder le meilleur 1RM par exercice
+          const current = prMap.get(pr.exercise.name) || 0;
+          if (pr.estimated_1rm > current) {
+            prMap.set(pr.exercise.name, pr.estimated_1rm);
+          }
+        }
+      });
+
+      setPersonalRecords(prMap);
+    };
+
+    loadPersonalRecords();
+  }, [athleteId]);
+
+  // Fonction pour calculer le poids basé sur RPE, reps et 1RM
+  const calculateWeightFromRPE = async (
+    exerciseName: string,
+    reps: number | null,
+    rpe: number | null
+  ): Promise<number | null> => {
+    if (!reps || !rpe) return null;
+
+    // Récupérer le % du 1RM depuis la table RPE
+    const supabase = createClient();
+    const { data: rpeData } = await supabase
+      .from("rpe_table")
+      .select("percentage_of_1rm")
+      .eq("reps", reps)
+      .eq("rpe", rpe)
+      .single();
+
+    if (!rpeData || !rpeData.percentage_of_1rm) return null;
+
+    // Récupérer le 1RM de l'athlète pour cet exercice
+    const oneRM = personalRecords.get(exerciseName);
+    if (!oneRM) return null;
+
+    // Calculer le poids et arrondir à 2.5kg près
+    const weight = (oneRM * rpeData.percentage_of_1rm) / 100;
+    const rounded = Math.round(weight / 2.5) * 2.5;
+    
+    return rounded;
+  };
+
+  // Fonction pour calculer le RPE basé sur le poids, reps et 1RM
+  const calculateRPEFromWeight = async (
+    exerciseName: string,
+    reps: number | null,
+    weight: number | null
+  ): Promise<number | null> => {
+    if (!reps || !weight) return null;
+
+    // Récupérer le 1RM de l'athlète
+    const oneRM = personalRecords.get(exerciseName);
+    if (!oneRM) return null;
+
+    // Calculer le % du 1RM que représente ce poids
+    const percentage = (weight / oneRM) * 100;
+
+    // Trouver le RPE le plus proche dans la table RPE pour ces reps
+    const supabase = createClient();
+    const { data: rpeOptions } = await supabase
+      .from("rpe_table")
+      .select("rpe, percentage_of_1rm")
+      .eq("reps", reps)
+      .order("percentage_of_1rm", { ascending: true });
+
+    if (!rpeOptions || rpeOptions.length === 0) return null;
+
+    // Trouver le RPE avec le % le plus proche
+    let closestRPE = rpeOptions[0].rpe;
+    let minDiff = Math.abs(rpeOptions[0].percentage_of_1rm - percentage);
+
+    for (const option of rpeOptions) {
+      const diff = Math.abs(option.percentage_of_1rm - percentage);
+      if (diff < minDiff) {
+        minDiff = diff;
+        closestRPE = option.rpe;
+      }
+    }
+
+    return closestRPE;
+  };
 
   // Charger les exercices
   useEffect(() => {
@@ -222,6 +334,7 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
         prescribed_reps: null,
         prescribed_weight: null,
         prescribed_rpe: null,
+        actual_rpe: null,  // Sera mis à jour quand prescribed_rpe sera rempli
         notes: null,
       })
       .select()
@@ -251,6 +364,98 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
   const handleUpdateSet = async (sessionId: string, setId: string, field: keyof Set, value: any) => {
     const supabase = createClient();
 
+    // Récupérer le set actuel pour avoir toutes les infos
+    const session = week.sessions.find(s => s.id === sessionId);
+    const currentSet = session?.sets.find(s => s.id === setId);
+    if (!currentSet) return;
+
+    // Créer une copie mise à jour du set
+    const updatedSet = { ...currentSet, [field]: value };
+
+    // Si c'est un bloc de force, calculer automatiquement
+    const isForceBlock = week.block?.block_type === "force";
+    
+    if (isForceBlock) {
+      // Si on modifie le RPE prescrit, calculer automatiquement le poids ET mettre à jour le RPE réel
+      if (field === "prescribed_rpe" && value !== null) {
+        const calculatedWeight = await calculateWeightFromRPE(
+          currentSet.exercise_name,
+          updatedSet.prescribed_reps,
+          value
+        );
+        if (calculatedWeight !== null) {
+          updatedSet.prescribed_weight = calculatedWeight;
+          // Mettre à jour aussi le poids dans la DB
+          await supabase
+            .from("sets")
+            .update({ prescribed_weight: calculatedWeight })
+            .eq("id", setId);
+        }
+        
+        // Si le RPE réel n'a jamais été modifié (null ou égal à l'ancien RPE prescrit),
+        // le mettre à jour avec le nouveau RPE prescrit
+        if (currentSet.actual_rpe === null || currentSet.actual_rpe === currentSet.prescribed_rpe) {
+          updatedSet.actual_rpe = value;
+          await supabase
+            .from("sets")
+            .update({ actual_rpe: value })
+            .eq("id", setId);
+        }
+      }
+      
+      // Si on modifie le poids, calculer automatiquement le RPE prescrit ET mettre à jour le RPE réel
+      if (field === "prescribed_weight" && value !== null) {
+        const calculatedRPE = await calculateRPEFromWeight(
+          currentSet.exercise_name,
+          updatedSet.prescribed_reps,
+          value
+        );
+        if (calculatedRPE !== null) {
+          updatedSet.prescribed_rpe = calculatedRPE;
+          // Mettre à jour aussi le RPE dans la DB
+          await supabase
+            .from("sets")
+            .update({ prescribed_rpe: calculatedRPE })
+            .eq("id", setId);
+          
+          // Si le RPE réel n'a jamais été modifié, le mettre à jour aussi
+          if (currentSet.actual_rpe === null || currentSet.actual_rpe === currentSet.prescribed_rpe) {
+            updatedSet.actual_rpe = calculatedRPE;
+            await supabase
+              .from("sets")
+              .update({ actual_rpe: calculatedRPE })
+              .eq("id", setId);
+          }
+        }
+      }
+
+      // Si on modifie les reps, recalculer le poids basé sur le RPE actuel
+      if (field === "prescribed_reps" && value !== null && updatedSet.prescribed_rpe !== null) {
+        const calculatedWeight = await calculateWeightFromRPE(
+          currentSet.exercise_name,
+          value,
+          updatedSet.prescribed_rpe
+        );
+        if (calculatedWeight !== null) {
+          updatedSet.prescribed_weight = calculatedWeight;
+          await supabase
+            .from("sets")
+            .update({ prescribed_weight: calculatedWeight })
+            .eq("id", setId);
+        }
+        
+        // Le RPE réel reste synchronisé si non modifié manuellement
+        if (currentSet.actual_rpe === null || currentSet.actual_rpe === currentSet.prescribed_rpe) {
+          updatedSet.actual_rpe = updatedSet.prescribed_rpe;
+          await supabase
+            .from("sets")
+            .update({ actual_rpe: updatedSet.prescribed_rpe })
+            .eq("id", setId);
+        }
+      }
+    }
+
+    // Mettre à jour le champ principal
     const { error } = await supabase
       .from("sets")
       .update({ [field]: value })
@@ -261,6 +466,7 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
       return;
     }
 
+    // Mettre à jour l'état local avec toutes les modifications
     setWeek({
       ...week,
       sessions: week.sessions.map(s =>
@@ -268,7 +474,7 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
           ? {
               ...s,
               sets: s.sets.map(set =>
-                set.id === setId ? { ...set, [field]: value } : set
+                set.id === setId ? updatedSet : set
               ),
             }
           : s
@@ -355,6 +561,29 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
           <ArrowLeft className="mr-2 h-4 w-4" />
           Retour au bloc
         </Button>
+        
+        {/* Bannière d'information pour les blocs de force */}
+        {!isGeneralBlock && (
+          <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <div className="flex-shrink-0 w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                  <span className="text-xl">⚡</span>
+                </div>
+                <div className="flex-1 space-y-1">
+                  <h4 className="font-semibold text-blue-900">Calcul automatique activé (Bloc de Force)</h4>
+                  <p className="text-sm text-blue-700">
+                    <strong>RPE → Charge :</strong> Le poids se calcule automatiquement selon vos PR et la table RPE.
+                    <br />
+                    <strong>Charge → RPE :</strong> Le RPE prescrit s'ajuste automatiquement quand vous modifiez le poids.
+                    <br />
+                    <strong>RPE Réel :</strong> Notez le ressenti réel après l'exécution (n'affecte pas les calculs).
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
         
         <div className="flex items-start justify-between gap-4">
           <div className="flex-1 space-y-3">
@@ -513,6 +742,7 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                                   <Input
                                     type="number"
                                     placeholder="0"
+                                    step="2.5"
                                     value={set.prescribed_weight || ""}
                                     onChange={(e) =>
                                       handleUpdateSet(
@@ -542,46 +772,71 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                             </div>
 
                             {!isGeneralBlock && (
-                              <div className="col-span-2">
-                                <div className="space-y-1">
-                                  <Label className="text-xs text-gray-500">RPE</Label>
-                                  <div className="relative">
+                              <>
+                                <div className="col-span-2">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-gray-500">RPE Prescrit</Label>
+                                    <div className="relative">
+                                      <Input
+                                        type="number"
+                                        placeholder="0"
+                                        min="0"
+                                        max="12.5"
+                                        step="0.5"
+                                        value={set.prescribed_rpe || ""}
+                                        onChange={(e) =>
+                                          handleUpdateSet(
+                                            session.id!,
+                                            set.id!,
+                                            "prescribed_rpe",
+                                            e.target.value ? parseFloat(e.target.value) : null
+                                          )
+                                        }
+                                        className="h-9"
+                                      />
+                                      {(() => {
+                                        const prevData = getPreviousWeekData(session.session_number, set.exercise_name, set.set_number);
+                                        if (!prevData?.prescribed_rpe) return null;
+                                        
+                                        const isSameAsPrev = set.prescribed_rpe === prevData.prescribed_rpe;
+                                        return (
+                                          <span className={`absolute -bottom-5 left-0 text-xs whitespace-nowrap ${
+                                            isSameAsPrev ? 'text-green-600' : 'text-blue-600'
+                                          }`}>
+                                            {isSameAsPrev ? '✓ ' : ''}S{week.week_number - 1}: {prevData.prescribed_rpe}
+                                          </span>
+                                        );
+                                      })()}
+                                    </div>
+                                  </div>
+                                </div>
+
+                                <div className="col-span-2">
+                                  <div className="space-y-1">
+                                    <Label className="text-xs text-gray-500">RPE Réel</Label>
                                     <Input
                                       type="number"
                                       placeholder="0"
                                       min="0"
-                                      max="10"
+                                      max="12.5"
                                       step="0.5"
-                                      value={set.prescribed_rpe || ""}
+                                      value={set.actual_rpe || ""}
                                       onChange={(e) =>
                                         handleUpdateSet(
                                           session.id!,
                                           set.id!,
-                                          "prescribed_rpe",
+                                          "actual_rpe",
                                           e.target.value ? parseFloat(e.target.value) : null
                                         )
                                       }
-                                      className="h-9"
+                                      className="h-9 bg-amber-50"
                                     />
-                                    {(() => {
-                                      const prevData = getPreviousWeekData(session.session_number, set.exercise_name, set.set_number);
-                                      if (!prevData?.prescribed_rpe) return null;
-                                      
-                                      const isSameAsPrev = set.prescribed_rpe === prevData.prescribed_rpe;
-                                      return (
-                                        <span className={`absolute -bottom-5 left-0 text-xs whitespace-nowrap ${
-                                          isSameAsPrev ? 'text-green-600' : 'text-blue-600'
-                                        }`}>
-                                          {isSameAsPrev ? '✓ ' : ''}S{week.week_number - 1}: {prevData.prescribed_rpe}
-                                        </span>
-                                      );
-                                    })()}
                                   </div>
                                 </div>
-                              </div>
+                              </>
                             )}
                             
-                            <div className={isGeneralBlock ? "col-span-6" : "col-span-4"}>
+                            <div className={isGeneralBlock ? "col-span-6" : "col-span-2"}>
                               <div className="space-y-1">
                                 <Label className="text-xs text-gray-500">Notes</Label>
                                 <Input
