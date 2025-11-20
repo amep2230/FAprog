@@ -919,12 +919,6 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                         }
                       }
 
-                      // Calculer le numéro de série relatif à l'exercice (1, 2, 3... pour chaque exercice)
-                      const exerciseSetNumber = arr
-                        .filter(s => s.exercise_name === set.exercise_name)
-                        .sort((a, b) => a.set_number - b.set_number)
-                        .findIndex(s => s.id === set.id) + 1;
-
                       return (
                         <div key={`group-${groupIndex}`} className="pt-4 first:pt-0">
                           {/* Header du groupe */}
@@ -944,9 +938,24 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                                 }
                                 className="font-semibold text-lg border-0 px-0 focus-visible:ring-0 focus-visible:ring-offset-0 flex-1 mr-2"
                               />
-                            </div>
-                          )}
-                          <div className="grid gap-3 items-end pl-6 py-2 hover:bg-gray-50 rounded-md -ml-2 pl-8" style={{ gridTemplateColumns: isGeneralBlock ? "auto 1fr 1fr 2fr auto" : "auto 1fr 1fr 1fr 1fr 1fr auto" }}>
+                            )}
+                          </div>
+                          
+                          {/* Mapper sur chaque set du groupe */}
+                          {sets.map((set: Set, setIndex: number) => {
+                            // Calculer le numéro de série relatif à l'exercice (1, 2, 3... pour chaque exercice)
+                            const allSetsInSession = session.sets;
+                            const exerciseSetNumber = allSetsInSession
+                              .filter(s => s.exercise_name === set.exercise_name)
+                              .sort((a, b) => a.set_number - b.set_number)
+                              .findIndex(s => s.id === set.id) + 1;
+                            
+                            // Vérifier si c'est la dernière série de cet exercice
+                            const isLastSetOfExercise = setIndex === sets.length - 1;
+
+                            return (
+                              <>
+                          <div key={`set-${set.id}`} className="grid gap-3 items-end pl-6 py-2 hover:bg-gray-50 rounded-md -ml-2 pl-8" style={{ gridTemplateColumns: isGeneralBlock ? "auto 1fr 1fr 2fr auto" : "auto 1fr 1fr 1fr 1fr 1fr auto" }}>
                             <div className="text-sm font-medium text-gray-600 pb-2.5">
                               Série {exerciseSetNumber}
                             </div>
@@ -969,27 +978,6 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                                 />
                               </div>
                             </div>
-
-                            <div>
-                              <div className="space-y-1">
-                                <Label className="text-xs text-gray-500">Poids (kg)</Label>
-                                <div className="relative">
-                                  <Input
-                                    type="number"
-                                    placeholder="0"
-                                    value={set.prescribed_reps || ""}
-                                    onChange={(e: any) =>
-                                      handleUpdateSet(
-                                        session.id!,
-                                        set.id!,
-                                        "prescribed_reps",
-                                        e.target.value ? parseInt(e.target.value) : null
-                                      )
-                                    }
-                                    className="h-9"
-                                  />
-                                </div>
-                              </div>
 
                               <div className="col-span-2">
                                 <div className="space-y-1">
@@ -1169,8 +1157,7 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                                     />
                                   </div>
                                 </div>
-                              </>
-                            )}
+                              )}
                             
                             <div>
                               <div className="space-y-1">
@@ -1213,6 +1200,9 @@ export default function WeekEditor({ week: initialWeek, athleteId, blockId }: We
                               </Button>
                             </div>
                           )}
+                              </>
+                            );
+                          })}
                         </div>
                       );
                     })}
