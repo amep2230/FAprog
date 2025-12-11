@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { login, signup } from "./actions";
 import { createClient } from "@/lib/supabase/client";
@@ -15,7 +15,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-export default function LoginPage() {
+function LoginForm() {
   const searchParams = useSearchParams();
   const [isSignUp, setIsSignUp] = useState(false);
   const [role, setRole] = useState<"coach" | "athlete">("athlete");
@@ -217,5 +217,13 @@ export default function LoginPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div>Chargement...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }
