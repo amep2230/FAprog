@@ -83,6 +83,56 @@ export default async function AthletePage() {
     .eq("athlete_id", user.id)
     .order("created_at", { ascending: false });
 
+  // --- NUTRITION DATA ---
+  // 1. Check if profile exists
+  const { data: nutritionProfile } = await supabase
+    .from('nutrition_profiles')
+    .select('*')
+    .eq('user_id', user.id)
+    .single();
+
+  // 2. Check if plan exists for today
+  const today = new Date().toISOString().split('T')[0];
+  let dailyPlan = null;
+
+  if (nutritionProfile) {
+    const { data: plan } = await supabase
+      .from('nutrition_daily_plans')
+      .select(`
+        *,
+        meals:nutrition_meals(*)
+      `)
+      .eq('user_id', user.id)
+      .eq('date', today)
+      .single();
+    
+    if (plan) {
+      // Transform to match DayMealPlan interface
+      dailyPlan = {
+        meals: plan.meals.map((m: any) => ({
+          id: m.id,
+          type: m.meal_type,
+          name: m.name,
+          description: m.description,
+          ingredients: m.description.split('Ingrédients:\n')[1]?.split('\n') || [], // Basic parsing fallback
+          macros: {
+            calories: m.calories,
+            protein: m.protein_g,
+            carbs: m.carbs_g,
+            fats: m.fats_g
+          },
+          isEaten: m.is_eaten
+        })),
+        totalMacros: {
+          calories: plan.meals.reduce((acc: number, m: any) => acc + m.calories, 0),
+          protein: plan.meals.reduce((acc: number, m: any) => acc + m.protein_g, 0),
+          carbs: plan.meals.reduce((acc: number, m: any) => acc + m.carbs_g, 0),
+          fats: plan.meals.reduce((acc: number, m: any) => acc + m.fats_g, 0),
+        }
+      };
+    }
+  }
+
   return <AthleteDashboard 
     athlete={profile} 
     programs={programs || []}
@@ -90,5 +140,7 @@ export default async function AthletePage() {
     sessionLogs={sessionLogs}
     exercises={exercises || []}
     personalRecords={personalRecords || []}
+    nutritionProfile={nutritionProfile}
+    dailyPlan={dailyPlan}
   />;
 }

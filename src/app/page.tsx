@@ -38,7 +38,11 @@ export default async function Home() {
     }
 
     // Rediriger selon le rôle par défaut
-    redirect(userMetadata.role === "coach" ? "/dashboard/coach" : "/dashboard/athlete");
+    // Note: Si le profil vient d'être créé dans le callback, ce bloc ne devrait pas être atteint
+    // sauf s'il y a eu une erreur de timing ou si le callback n'a pas fonctionné.
+    // On utilise 'athlete' par défaut ici si userMetadata.role n'est pas défini.
+    const role = userMetadata.role || 'athlete';
+    redirect(role === "coach" ? "/dashboard/coach" : "/dashboard/athlete");
   }
 
   if (profile?.role === "coach") {
