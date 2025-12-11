@@ -47,8 +47,8 @@ export default function SessionLogger({ session, athleteId, onClose }: SessionLo
     session.sets.map((set: any) => ({
       setId: set.id,
       actualWeight: set.prescribed_weight?.toString() || "",
-      actualReps: set.reps?.toString() || "",
-      actualRpe: set.rpe?.toString() || "",
+      actualReps: (set.reps || set.prescribed_reps || "").toString(),
+      actualRpe: (set.rpe || set.prescribed_rpe || "").toString(),
       completed: true,
     }))
   );
@@ -193,9 +193,9 @@ export default function SessionLogger({ session, athleteId, onClose }: SessionLo
                 <div key={set.id} className="border rounded-lg p-3 sm:p-4 space-y-3">
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div>
-                      <h3 className="font-semibold text-base sm:text-lg">{set.exercise.name}</h3>
+                      <h3 className="font-semibold text-base sm:text-lg">{set.exercise?.name || set.exercise_name || "Exercice inconnu"}</h3>
                       <p className="text-xs sm:text-sm text-gray-600">
-                        Prescrit: {set.reps} reps @ RPE {set.rpe}
+                        Prescrit: {set.reps || set.prescribed_reps} reps @ RPE {set.rpe || set.prescribed_rpe}
                         {set.prescribed_weight && ` • ${set.prescribed_weight} kg`}
                       </p>
                     </div>
@@ -236,7 +236,7 @@ export default function SessionLogger({ session, athleteId, onClose }: SessionLo
                           onChange={(e) =>
                             handleSetChange(idx, "actualReps", e.target.value)
                           }
-                          placeholder={set.reps.toString()}
+                          placeholder={(set.reps || set.prescribed_reps || "").toString()}
                           required
                           className="text-sm sm:text-base"
                         />
@@ -252,7 +252,7 @@ export default function SessionLogger({ session, athleteId, onClose }: SessionLo
                           onChange={(e) =>
                             handleSetChange(idx, "actualRpe", e.target.value)
                           }
-                          placeholder={set.rpe.toString()}
+                          placeholder={(set.rpe || set.prescribed_rpe || "").toString()}
                           required
                           className="text-sm sm:text-base"
                         />

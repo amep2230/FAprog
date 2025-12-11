@@ -117,45 +117,61 @@ export default function WeeklyProgramView({
                   <Table>
                     <TableHeader>
                       <TableRow className="bg-gray-100">
-                        <TableHead className="text-left">Exercice</TableHead>
-                        <TableHead className="text-center">Sér</TableHead>
-                        <TableHead className="text-center">Rép</TableHead>
-                        <TableHead className="text-center">RPE</TableHead>
-                        <TableHead className="text-center">Charge</TableHead>
+                        <TableHead className="text-center w-[10%]">Sér</TableHead>
+                        <TableHead className="text-center w-[15%]">Rép</TableHead>
+                        <TableHead className="text-center w-[15%]">RPE</TableHead>
+                        <TableHead className="text-center w-[20%]">Charge</TableHead>
                         <TableHead className="text-left hidden md:table-cell">Instructions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {session.sets.map((set: any, idx: number) => (
-                        <TableRow
-                          key={set.id}
-                          className={`
-                            ${idx % 2 === 0 ? "bg-white" : "bg-gray-50"}
-                            hover:bg-blue-50 transition-colors
-                          `}
-                        >
-                          <TableCell className="font-medium text-xs w-[35%] sm:w-40 sm:text-sm">
-                            <div className="truncate max-w-full sm:max-w-[160px]">
-                              {set.exercise.name}
-                            </div>
-                          </TableCell>
-                          <TableCell className="text-center text-xs w-[10%] sm:w-20 sm:text-sm">
-                            {idx + 1}
-                          </TableCell>
-                          <TableCell className="text-center font-semibold text-xs w-[13%] sm:w-20 sm:text-sm">
-                            {set.reps}
-                          </TableCell>
-                          <TableCell className="text-center font-semibold text-xs w-[13%] sm:w-20 sm:text-sm">
-                            {set.rpe}
-                          </TableCell>
-                          <TableCell className="text-center font-bold text-blue-600 text-xs w-[29%] sm:w-24 sm:text-sm">
-                            {set.prescribed_weight ? `${set.prescribed_weight} kg` : "-"}
-                          </TableCell>
-                          <TableCell className="text-xs sm:text-sm text-gray-600 hidden md:table-cell">
-                            {set.instructions || "-"}
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {session.sets
+                        .sort((a: any, b: any) => (a.set_order || a.set_number || 0) - (b.set_order || b.set_number || 0))
+                        .reduce((groups: any[], set: any) => {
+                          const lastGroup = groups[groups.length - 1];
+                          const exerciseName = set.exercise?.name || set.exercise_name || "Exercice inconnu";
+                          
+                          if (lastGroup && lastGroup.exerciseName === exerciseName) {
+                            lastGroup.sets.push(set);
+                          } else {
+                            groups.push({
+                              exerciseName,
+                              sets: [set]
+                            });
+                          }
+                          return groups;
+                        }, [])
+                        .map((group: any, groupIdx: number) => (
+                          <>
+                            <TableRow key={`group-${groupIdx}`} className="bg-blue-50/50">
+                              <TableCell colSpan={5} className="font-bold text-sm sm:text-base py-3 text-left pl-4">
+                                {group.exerciseName}
+                              </TableCell>
+                            </TableRow>
+                            {group.sets.map((set: any, setIdx: number) => (
+                              <TableRow
+                                key={set.id}
+                                className="hover:bg-gray-50 transition-colors"
+                              >
+                                <TableCell className="text-center text-xs sm:text-sm">
+                                  {setIdx + 1}
+                                </TableCell>
+                                <TableCell className="text-center font-semibold text-xs sm:text-sm">
+                                  {set.reps || set.prescribed_reps}
+                                </TableCell>
+                                <TableCell className="text-center font-semibold text-xs sm:text-sm">
+                                  {set.rpe || set.prescribed_rpe}
+                                </TableCell>
+                                <TableCell className="text-center font-bold text-blue-600 text-xs sm:text-sm">
+                                  {set.prescribed_weight ? `${set.prescribed_weight} kg` : "-"}
+                                </TableCell>
+                                <TableCell className="text-xs sm:text-sm text-gray-600 hidden md:table-cell">
+                                  {set.instructions || "-"}
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </>
+                        ))}
                     </TableBody>
                   </Table>
                 </div>
