@@ -49,6 +49,20 @@ export default async function AthletePage() {
       .order("week_number", { ascending: true });
 
     if (weeks && weeks.length > 0) {
+      // Ajouter les semaines du bloc à la liste des programmes
+      const blockWeeksAsPrograms = weeks.map((week: any) => ({
+        id: week.id,
+        name: `${activeBlock.name} - ${week.name}`,
+        week_number: week.week_number,
+        created_at: week.created_at || activeBlock.created_at,
+        coach: activeBlock.coach,
+        isBlock: true,
+        blockId: activeBlock.id
+      }));
+      
+      // On ajoute ces semaines au début de la liste
+      programsList = [...blockWeeksAsPrograms];
+
       // Pour l'instant, on prend la première semaine comme semaine active
       // TODO: Implémenter une logique pour déterminer la semaine active basée sur la date
       const currentWeek = weeks[0];
@@ -113,7 +127,7 @@ export default async function AthletePage() {
     .eq("athlete_id", user.id)
     .order("created_at", { ascending: false });
     
-  programsList = oldPrograms || [];
+  programsList = [...programsList, ...(oldPrograms || [])];
 
   // Récupérer les logs de sessions pour savoir quelles sessions sont complétées
   let sessionLogs: any[] = [];

@@ -145,10 +145,10 @@ export async function generateDailyMealPlan(
       meal_type: mapMealType(meal.type),
       name: meal.name,
       description: meal.description + '\n\nIngrédients:\n' + meal.ingredients.join('\n'),
-      calories: meal.macros.calories,
-      protein_g: meal.macros.protein,
-      carbs_g: meal.macros.carbs,
-      fats_g: meal.macros.fats,
+      calories: Math.round(Number(meal.macros.calories)),
+      protein_g: Math.round(Number(meal.macros.protein)),
+      carbs_g: Math.round(Number(meal.macros.carbs)),
+      fats_g: Math.round(Number(meal.macros.fats)),
       is_eaten: false
     }));
 

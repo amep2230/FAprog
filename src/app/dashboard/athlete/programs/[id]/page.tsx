@@ -32,7 +32,8 @@ export default async function ProgramDetailPage({ params }: ProgramDetailPagePro
   }
 
   // Récupérer le programme avec toutes ses séances et sets
-  const { data: program, error } = await supabase
+  // 1. Essayer de récupérer depuis la table programs (ancien système)
+  let { data: program, error } = await supabase
     .from("programs")
     .select(`
       *,
@@ -48,7 +49,48 @@ export default async function ProgramDetailPage({ params }: ProgramDetailPagePro
     .eq("athlete_id", user.id)
     .single();
 
-  if (error || !program) {
+  // 2. Si pas trouvé, essayer de récupérer depuis training_weeks (nouveau système)
+  if (!program) {
+    const { data: week, error: weekError } = await supabase
+      .from("training_weeks")
+      .select(`
+        *,
+        block:training_blocks (
+          *,
+          coach:profiles!training_blocks_coach_id_fkey(name, email)
+        ),
+        sessions (
+          *,
+          sets (
+            *,
+            exercise:exercises (*)
+          )
+        )
+      `)
+      .eq("id", params.id)
+      .single();
+
+    if (week) {
+      // Vérifier que le bloc appartient bien à l'athlète
+      if (week.block.athlete_id !== user.id) {
+        redirect("/dashboard/athlete");
+      }
+
+      program = {
+        id: week.id,
+        name: `${week.block.name} - ${week.name}`,
+        week_number: week.week_number,
+        created_at: week.created_at,
+        coach_id: week.block.coach_id,
+        athlete_id: week.block.athlete_id,
+        sessions: week.sessions,
+        coach: week.block.coach,
+        isBlock: true
+      };
+    }
+  }
+
+  if (!program) {
     notFound();
   }
 
