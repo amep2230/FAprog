@@ -59,49 +59,6 @@ export async function signup(formData: FormData) {
     return { error: "Erreur lors de la création du compte" };
   }
 
-  // Attendre un peu pour que le trigger se déclenche
-  await new Promise((resolve) => setTimeout(resolve, 500));
-
-  // Vérifier si le profil a été créé par le trigger
-  try {
-    const { data: profile, error: selectError } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("id", data.user.id)
-      .single();
-
-    if (profile) {
-      // Le profil existe déjà (créé par le trigger)
-      console.log("Profile created by trigger successfully");
-    } else if (selectError) {
-      // Le profil n'existe pas, le créer manuellement
-      console.log("Profile not found, creating manually:", selectError.message);
-
-      const { error: insertError } = await supabase
-        .from("profiles")
-        .insert({
-          id: data.user.id,
-          name,
-          email,
-          role,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        });
-
-      if (insertError) {
-        console.error("Error creating profile manually:", insertError);
-        return {
-          error: `Erreur lors de la création du profil: ${insertError.message}`,
-        };
-      }
-
-      console.log("Profile created manually successfully");
-    }
-  } catch (err) {
-    console.error("Unexpected error during profile creation:", err);
-    return { error: "Une erreur inattendue est survenue" };
-  }
-
   // Si la confirmation par email est désactivée, rediriger
   if (data.user && data.session) {
     redirect("/");
