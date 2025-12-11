@@ -2,6 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 
 export async function login(formData: FormData) {
   const supabase = await createClient();
@@ -14,6 +15,7 @@ export async function login(formData: FormData) {
   const { error } = await supabase.auth.signInWithPassword(data);
 
   if (error) {
+    console.error("Login error:", error.message);
     return { error: error.message };
   }
 
@@ -22,11 +24,23 @@ export async function login(formData: FormData) {
 
 export async function signup(formData: FormData) {
   const supabase = await createClient();
+  
+  // Déterminer l'URL de base pour la redirection
+  let origin = headers().get("origin");
+  if (!origin) {
+    // Fallback sur la variable d'environnement, en s'assurant qu'il n'y a pas de slash à la fin
+    origin = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
+    if (origin.endsWith('/')) {
+      origin = origin.slice(0, -1);
+    }
+  }
 
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;
   const name = formData.get("name") as string;
   const role = formData.get("role") as string;
+
+  console.log("Attempting signup for:", email);
 
   // Validation des données
   if (!email || !password || !name || !role) {
@@ -46,7 +60,7 @@ export async function signup(formData: FormData) {
         name,
         role,
       },
-      emailRedirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/auth/callback`,
+      emailRedirectTo: `${origin}/auth/callback`,
     },
   });
 
