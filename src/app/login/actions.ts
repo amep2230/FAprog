@@ -26,14 +26,28 @@ export async function signup(formData: FormData) {
   const supabase = await createClient();
   
   // Déterminer l'URL de base pour la redirection
-  let origin = headers().get("origin");
-  if (!origin) {
-    // Fallback sur la variable d'environnement, en s'assurant qu'il n'y a pas de slash à la fin
-    origin = process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000";
-    if (origin.endsWith('/')) {
-      origin = origin.slice(0, -1);
-    }
+  // Priorité: 
+  // 1. NEXT_PUBLIC_APP_URL (défini manuellement)
+  // 2. VERCEL_URL (défini automatiquement par Vercel)
+  // 3. Origin header (navigateur)
+  // 4. Localhost (fallback)
+  
+  let origin = process.env.NEXT_PUBLIC_APP_URL;
+  
+  if (!origin && process.env.VERCEL_URL) {
+    origin = `https://${process.env.VERCEL_URL}`;
   }
+  
+  if (!origin) {
+    origin = headers().get("origin") || "http://localhost:3000";
+  }
+
+  // Nettoyer l'URL (enlever le slash final si présent)
+  if (origin.endsWith('/')) {
+    origin = origin.slice(0, -1);
+  }
+
+  console.log("Signup redirect origin:", origin);
 
   const email = formData.get("email") as string;
   const password = formData.get("password") as string;

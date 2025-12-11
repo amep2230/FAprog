@@ -24,8 +24,87 @@ export default async function AthletePage() {
     redirect("/dashboard/coach");
   }
 
-  // Récupérer les programmes de l'athlète
-  const { data: programs } = await supabase
+  // --- LOGIQUE DE RÉCUPÉRATION DU PROGRAMME (BLOCS OU ANCIEN SYSTÈME) ---
+  
+  let currentProgram = null;
+  let programsList: any[] = [];
+
+  // 1. Essayer de récupérer un BLOC ACTIF
+  const { data: activeBlock } = await supabase
+    .from("training_blocks")
+    .select(`
+      *,
+      coach:profiles!training_blocks_coach_id_fkey(name, email)
+    `)
+    .eq("athlete_id", user.id)
+    .eq("is_active", true)
+    .single();
+
+  if (activeBlock) {
+    // Si un bloc actif existe, on récupère ses semaines
+    const { data: weeks } = await supabase
+      .from("training_weeks")
+      .select("*")
+      .eq("block_id", activeBlock.id)
+      .order("week_number", { ascending: true });
+
+    if (weeks && weeks.length > 0) {
+      // Pour l'instant, on prend la première semaine comme semaine active
+      // TODO: Implémenter une logique pour déterminer la semaine active basée sur la date
+      const currentWeek = weeks[0];
+
+      // Récupérer les sessions de cette semaine
+      const { data: sessions } = await supabase
+        .from("sessions")
+        .select(`
+          *,
+          sets (
+            *,
+            exercise:exercises (*)
+          )
+        `)
+        .eq("week_id", currentWeek.id)
+        .order("day_of_week", { ascending: true });
+
+      currentProgram = {
+        id: currentWeek.id, // On utilise l'ID de la semaine comme ID de programme
+        name: activeBlock.name, // Nom du bloc
+        week_name: currentWeek.name, // Nom de la semaine
+        week_number: currentWeek.week_number,
+        sessions: sessions || [],
+        coach: activeBlock.coach,
+        isBlock: true,
+        blockId: activeBlock.id
+      };
+    }
+  }
+
+  // 2. Si pas de bloc actif, essayer l'ANCIEN SYSTÈME (programs)
+  if (!currentProgram) {
+    const { data: oldProgram } = await supabase
+      .from("programs")
+      .select(`
+        *,
+        coach:profiles!programs_coach_id_fkey(name, email),
+        sessions (
+          *,
+          sets (
+            *,
+            exercise:exercises (*)
+          )
+        )
+      `)
+      .eq("athlete_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+      
+    currentProgram = oldProgram;
+  }
+
+  // Récupérer la liste des programmes (pour l'historique)
+  // On combine les blocs et les anciens programmes
+  const { data: oldPrograms } = await supabase
     .from("programs")
     .select(`
       *,
@@ -33,25 +112,8 @@ export default async function AthletePage() {
     `)
     .eq("athlete_id", user.id)
     .order("created_at", { ascending: false });
-
-  // Récupérer le programme de la semaine actuelle avec toutes les sessions et séries
-  const { data: currentProgram } = await supabase
-    .from("programs")
-    .select(`
-      *,
-      coach:profiles!programs_coach_id_fkey(name, email),
-      sessions (
-        *,
-        sets (
-          *,
-          exercise:exercises (*)
-        )
-      )
-    `)
-    .eq("athlete_id", user.id)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .single();
+    
+  programsList = oldPrograms || [];
 
   // Récupérer les logs de sessions pour savoir quelles sessions sont complétées
   let sessionLogs: any[] = [];
@@ -135,7 +197,7 @@ export default async function AthletePage() {
 
   return <AthleteDashboard 
     athlete={profile} 
-    programs={programs || []}
+    programs={programsList}
     currentProgram={currentProgram}
     sessionLogs={sessionLogs}
     exercises={exercises || []}
